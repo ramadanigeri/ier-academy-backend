@@ -5,34 +5,37 @@
 ## Quick Start
 
 1. **Copy environment file:**
+
    ```bash
    cp .env.example .env
    ```
 
 2. **Edit `.env` with your values:**
+
    ```bash
    # Database - Create PostgreSQL database first
    DATABASE_URL=postgresql://username:password@localhost:5432/ier_academy
-   
+
    # Stripe - Move these from frontend .env.local
    STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
    STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
-   
+
    # Email - Set up Resend account (free tier available)
    RESEND_API_KEY=re_your_resend_api_key
-   
+
    # Frontend URL
    FRONTEND_URL=http://localhost:3000
    ```
 
 3. **Set up database:**
+
    ```bash
    # Create PostgreSQL database
    createdb ier_academy
-   
+
    # Run migrations
    npm run db:migrate
-   
+
    # Verify setup
    npm run db:seed
    ```
