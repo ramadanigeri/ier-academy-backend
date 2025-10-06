@@ -3,6 +3,7 @@
 ## 🎯 Overview
 
 This is the **backend API server** for IER Academy. It handles:
+
 - ✅ **Database operations** (PostgreSQL via Prisma)
 - ✅ **Payment processing** (Stripe)
 - ✅ **Email notifications** (Resend)
@@ -15,15 +16,15 @@ This is the **backend API server** for IER Academy. It handles:
 
 ## 📦 Technology Stack
 
-| Technology | Purpose | Version |
-|------------|---------|---------|
-| **Node.js** | Runtime environment | 18+ |
-| **Express.js** | Web framework | 4.x |
-| **PostgreSQL** | Database | 14+ |
-| **Prisma ORM** | Database toolkit | 6.x |
-| **Stripe** | Payment processing | Latest |
-| **Resend** | Email service | Latest |
-| **dotenv** | Environment config | Latest |
+| Technology     | Purpose             | Version |
+| -------------- | ------------------- | ------- |
+| **Node.js**    | Runtime environment | 18+     |
+| **Express.js** | Web framework       | 4.x     |
+| **PostgreSQL** | Database            | 14+     |
+| **Prisma ORM** | Database toolkit    | 6.x     |
+| **Stripe**     | Payment processing  | Latest  |
+| **Resend**     | Email service       | Latest  |
+| **dotenv**     | Environment config  | Latest  |
 
 ---
 
@@ -223,6 +224,7 @@ model EmailLog {
 **Endpoint:** `POST /api/enrollment`
 
 **Request:**
+
 ```json
 {
   "name": "John Doe",
@@ -234,6 +236,7 @@ model EmailLog {
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -252,6 +255,7 @@ model EmailLog {
 **Endpoint:** `POST /api/payment/create-intent`
 
 **Request:**
+
 ```json
 {
   "enrollmentId": "clx1234567",
@@ -261,6 +265,7 @@ model EmailLog {
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -274,6 +279,7 @@ model EmailLog {
 **Endpoint:** `POST /api/payment/confirm`
 
 **Request:**
+
 ```json
 {
   "enrollmentId": "clx1234567",
@@ -283,6 +289,7 @@ model EmailLog {
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -295,11 +302,13 @@ model EmailLog {
 **Endpoint:** `POST /api/webhooks/stripe`
 
 **Headers:**
+
 ```
 stripe-signature: t=xxx,v1=yyy
 ```
 
 Handles:
+
 - `payment_intent.succeeded`
 - `payment_intent.payment_failed`
 - `charge.refunded`
@@ -350,20 +359,23 @@ Uses **Resend** for transactional emails.
 ### Webhook Setup
 
 1. Install Stripe CLI:
+
    ```bash
    # Windows (scoop)
    scoop install stripe
-   
+
    # Mac
    brew install stripe/stripe-cli/stripe
    ```
 
 2. Login:
+
    ```bash
    stripe login
    ```
 
 3. Forward webhooks (development):
+
    ```bash
    stripe listen --forward-to localhost:3001/api/webhooks/stripe
    ```
@@ -375,10 +387,10 @@ Uses **Resend** for transactional emails.
 
 ### Test Cards
 
-| Card Number | Description |
-|-------------|-------------|
-| `4242 4242 4242 4242` | Successful payment |
-| `4000 0000 0000 9995` | Declined payment |
+| Card Number           | Description                         |
+| --------------------- | ----------------------------------- |
+| `4242 4242 4242 4242` | Successful payment                  |
+| `4000 0000 0000 9995` | Declined payment                    |
 | `4000 0025 0000 3155` | Requires authentication (3D Secure) |
 
 ---
@@ -492,6 +504,7 @@ npm run test:coverage
 **Error:** `Can't reach database server`
 
 **Solution:**
+
 1. Check database is running
 2. Verify connection string
 3. Check firewall settings
@@ -505,6 +518,7 @@ npm run test:coverage
 **Error:** `Webhook signature verification failed`
 
 **Solution:**
+
 1. Check webhook secret matches
 2. Verify request came from Stripe
 3. Use Stripe CLI for local testing
@@ -514,6 +528,7 @@ npm run test:coverage
 **Error:** `Email delivery failed`
 
 **Solution:**
+
 1. Verify Resend API key
 2. Check domain verification
 3. Review Resend logs
@@ -524,6 +539,7 @@ npm run test:coverage
 **Error:** `EADDRINUSE: address already in use :::3001`
 
 **Solution:**
+
 ```bash
 # Windows
 netstat -ano | findstr :3001
@@ -544,6 +560,7 @@ GET /health
 ```
 
 Response:
+
 ```json
 {
   "status": "healthy",
@@ -608,6 +625,7 @@ See `BRANCHING_STRATEGY.md` for complete workflow.
 - **`feature/*`** → New features
 
 **Workflow:**
+
 ```bash
 # Create feature
 git checkout dev
@@ -640,12 +658,14 @@ git push origin master
 ## 🆘 Support
 
 **Issues?**
+
 - Check troubleshooting section
 - Review logs
 - Test with minimal example
 - Open GitHub issue with details
 
 **Need help?**
+
 - Email: support@ieracademy.com
 - GitHub Issues
 - Documentation
@@ -674,6 +694,7 @@ After completing setup, verify:
 Your backend is now configured and ready to serve the IER Academy frontend!
 
 **Next steps:**
+
 1. Configure frontend to use backend URL
 2. Test full enrollment flow
 3. Set up production deployment
@@ -681,4 +702,3 @@ Your backend is now configured and ready to serve the IER Academy frontend!
 5. Test payment gateway
 
 **Happy coding!** 🚀
-
