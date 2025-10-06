@@ -7,6 +7,9 @@ export const enrollmentSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
   email: z.string().email('Invalid email address'),
   phone: z.string().min(1, 'Phone number is required'),
+  idCard: z.string().min(1, 'ID card number is required'),
+  address: z.string().min(1, 'Address is required'),
+  fatherName: z.string().min(1, 'Father\'s name is required'),
   gdprConsent: z
     .boolean()
     .refine((val) => val === true, 'GDPR consent is required'),

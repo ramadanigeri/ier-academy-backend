@@ -4,10 +4,10 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create enrollment status enum
-CREATE TYPE enrollment_status AS ENUM ('pending', 'paid', 'failed', 'cancelled');
+CREATE TYPE enrollment_status AS ENUM ('pending', 'registered', 'cancelled');
 
 -- Create payment status enum  
-CREATE TYPE payment_status AS ENUM ('pending', 'paid', 'failed', 'cancelled', 'refunded');
+CREATE TYPE payment_status AS ENUM ('pending', 'verified', 'cancelled');
 
 -- Create email status enum
 CREATE TYPE email_status AS ENUM ('sent', 'failed', 'delivered', 'bounced');
@@ -20,6 +20,9 @@ CREATE TABLE enrollments (
     full_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     phone VARCHAR(50) NOT NULL,
+    id_card VARCHAR(100) NOT NULL,
+    address TEXT NOT NULL,
+    father_name VARCHAR(255) NOT NULL,
     payment_ref VARCHAR(255),
     status enrollment_status DEFAULT 'pending',
     gdpr_consent BOOLEAN DEFAULT false,
@@ -28,16 +31,16 @@ CREATE TABLE enrollments (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Payments table
+-- Payments table (for bank transfer tracking)
 CREATE TABLE payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     enrollment_id UUID NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
-    provider VARCHAR(50) NOT NULL,
-    provider_payment_id VARCHAR(255) NOT NULL,
     amount INTEGER NOT NULL, -- Amount in cents
     currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
     status payment_status DEFAULT 'pending',
-    webhook_payload JSONB,
+    payment_date TIMESTAMP,
+    verified_by VARCHAR(255),
+    notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
