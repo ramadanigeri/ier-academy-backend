@@ -1,14 +1,14 @@
-import express from 'express';
-import { v4 as uuidv4 } from 'uuid';
-import pool from '../database/connection.js';
-import { enrollmentSchema } from '../utils/validation.js';
-import { getCourseBySlug } from '../services/sanity.js';
-import { sendEnrollmentConfirmationEmail } from '../services/email.js';
+import express from "express";
+import { v4 as uuidv4 } from "uuid";
+import pool from "../database/connection.js";
+import { enrollmentSchema } from "../utils/validation.js";
+import { getCourseBySlug } from "../services/sanity.js";
+// import { sendEnrollmentConfirmationEmail } from '../services/email.js'; // Disabled for now
 
 const router = express.Router();
 
 // Create enrollment (no payment processing)
-router.post('/checkout', async (req, res) => {
+router.post("/checkout", async (req, res) => {
   try {
     // Validate request data
     const validatedData = enrollmentSchema.parse(req.body);
@@ -17,28 +17,28 @@ router.post('/checkout', async (req, res) => {
     const course = await getCourseBySlug(validatedData.courseSlug);
 
     if (!course) {
-      return res.status(404).json({ error: 'Course not found' });
+      return res.status(404).json({ error: "Course not found" });
     }
 
     // Find the specific session
     const session = course.sessions?.find(
-      (s) => s._id === validatedData.sessionId,
+      (s) => s._id === validatedData.sessionId
     );
     if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
+      return res.status(404).json({ error: "Session not found" });
     }
 
     // Check if session is open for enrollment
-    if (session.status !== 'open') {
+    if (session.status !== "open") {
       return res
         .status(400)
-        .json({ error: 'Session is not open for enrollment' });
+        .json({ error: "Session is not open for enrollment" });
     }
 
     // Check available spots
     const availableSpots = session.capacity - session.enrolledCount;
     if (availableSpots <= 0) {
-      return res.status(400).json({ error: 'Session is full' });
+      return res.status(400).json({ error: "Session is full" });
     }
 
     // Create enrollment record
@@ -64,53 +64,66 @@ router.post('/checkout', async (req, res) => {
         validatedData.fatherName,
         validatedData.gdprConsent,
         validatedData.marketingConsent || false,
-        'pending',
-      ],
+        "enrolled",
+      ]
     );
 
     const enrollment = result.rows[0];
 
-    // Send confirmation email with bank transfer details
-    try {
-      await sendEnrollmentConfirmationEmail({
-        enrollmentId: enrollment.id,
-        fullName: validatedData.fullName,
-        email: validatedData.email,
-        courseName: course.title,
-        sessionName: session.title,
-        amount: course.price,
-        currency: course.currency || 'EUR',
-      });
-    } catch (emailError) {
-      console.error('Failed to send confirmation email:', emailError);
-      // Don't fail the enrollment if email fails
-    }
+    // Create initial payment record with pending status
+    await pool.query(
+      `
+      INSERT INTO payments (
+        enrollment_id, amount, currency, status, verified_by, payment_date
+      ) VALUES ($1, $2, $3, $4, $5, $6)
+    `,
+      [
+        enrollmentId,
+        course.price || 0,
+        course.currency || "EUR",
+        "pending",
+        null,
+        null,
+      ]
+    );
+
+    // TODO: Implement email confirmation when email service is configured
+    // await sendEnrollmentConfirmationEmail({
+    //   enrollmentId: enrollment.id,
+    //   fullName: validatedData.fullName,
+    //   email: validatedData.email,
+    //   courseName: course.title,
+    //   sessionName: session.title,
+    //   amount: course.price,
+    //   currency: course.currency || 'EUR',
+    // });
 
     res.json({
       success: true,
       enrollmentId: enrollment.id,
-      status: 'pending',
-      message: 'Enrollment created successfully. Please complete payment via bank transfer.',
+      status: "enrolled",
+      message:
+        "Enrollment created successfully. Please complete payment via bank transfer.",
     });
   } catch (error) {
-    console.error('Enrollment error:', error);
+    console.error("Enrollment error:", error);
 
-    if (error.name === 'ZodError') {
+    if (error.name === "ZodError") {
       return res.status(400).json({
-        error: 'Validation error',
+        error: "Validation error",
         details: error.errors.map((e) => ({
-          field: e.path.join('.'),
+          field: e.path.join("."),
           message: e.message,
         })),
       });
     }
 
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // Get enrollment by ID
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -118,28 +131,33 @@ router.get('/:id', async (req, res) => {
       `
       SELECT * FROM enrollments WHERE id = $1
     `,
-      [id],
+      [id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Enrollment not found' });
+      return res.status(404).json({ error: "Enrollment not found" });
     }
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Get enrollment error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Get enrollment error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // Update enrollment status (admin only)
-router.patch('/:id/status', async (req, res) => {
+router.patch("/:id/status", async (req, res) => {
   try {
     const { id } = req.params;
     const { status, adminEmail } = req.body;
 
-    if (!status || !['pending', 'registered', 'cancelled'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
+    if (
+      !status ||
+      !["pending", "payment_confirmed", "registered", "cancelled"].includes(
+        status
+      )
+    ) {
+      return res.status(400).json({ error: "Invalid status" });
     }
 
     // Update enrollment status
@@ -150,25 +168,55 @@ router.patch('/:id/status', async (req, res) => {
       WHERE id = $2
       RETURNING *
     `,
-      [status, id],
+      [status, id]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Enrollment not found' });
+      return res.status(404).json({ error: "Enrollment not found" });
     }
 
     const enrollment = result.rows[0];
 
-    // If status changed to 'registered', create a payment record
-    if (status === 'registered') {
+    // If status changed to 'payment_confirmed', create or update payment record
+    if (status === "payment_confirmed") {
+      // First check if payment record exists
+      const existingPayment = await pool.query(
+        `SELECT id FROM payments WHERE enrollment_id = $1`,
+        [id]
+      );
+
+      if (existingPayment.rows.length > 0) {
+        // Update existing payment record
+        await pool.query(
+          `
+          UPDATE payments 
+          SET status = $1, payment_date = CURRENT_TIMESTAMP, verified_by = $2, updated_at = CURRENT_TIMESTAMP
+          WHERE enrollment_id = $3
+        `,
+          ["verified", adminEmail || "admin", id]
+        );
+      } else {
+        // Create new payment record
+        await pool.query(
+          `
+          INSERT INTO payments (
+            enrollment_id, amount, currency, status, payment_date, verified_by
+          ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5)
+        `,
+          [id, 0, "EUR", "verified", adminEmail || "admin"]
+        );
+      }
+    }
+
+    // If status changed to 'registered', update payment to paid
+    if (status === "registered") {
       await pool.query(
         `
-        INSERT INTO payments (
-          enrollment_id, amount, currency, status, payment_date, verified_by
-        ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5)
-        ON CONFLICT DO NOTHING
+        UPDATE payments 
+        SET status = 'paid', updated_at = CURRENT_TIMESTAMP 
+        WHERE enrollment_id = $1
       `,
-        [id, 0, 'EUR', 'verified', adminEmail || 'admin'],
+        [id]
       );
     }
 
@@ -178,17 +226,17 @@ router.patch('/:id/status', async (req, res) => {
       message: `Enrollment status updated to ${status}`,
     });
   } catch (error) {
-    console.error('Update status error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Update status error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // Get all enrollments (admin only - with filters)
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { status, courseSlug, sessionId } = req.query;
 
-    let query = 'SELECT * FROM enrollments WHERE 1=1';
+    let query = "SELECT * FROM enrollments WHERE 1=1";
     const params = [];
     let paramIndex = 1;
 
@@ -210,7 +258,7 @@ router.get('/', async (req, res) => {
       paramIndex++;
     }
 
-    query += ' ORDER BY created_at DESC';
+    query += " ORDER BY created_at DESC";
 
     const result = await pool.query(query, params);
 
@@ -220,8 +268,8 @@ router.get('/', async (req, res) => {
       count: result.rows.length,
     });
   } catch (error) {
-    console.error('Get enrollments error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Get enrollments error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

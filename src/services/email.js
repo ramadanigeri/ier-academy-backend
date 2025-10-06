@@ -1,14 +1,14 @@
-import { Resend } from 'resend';
+import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Bank transfer details (centralized)
 const BANK_DETAILS = {
-  bankName: 'Your Bank Name',
-  accountName: 'IER Academy',
-  accountNumber: '1234567890',
-  iban: 'XX00 0000 0000 0000 0000',
-  swift: 'XXXXXX00',
+  bankName: "Your Bank Name",
+  accountName: "IER Academy",
+  accountNumber: "1234567890",
+  iban: "XX00 0000 0000 0000 0000",
+  swift: "XXXXXX00",
 };
 
 export async function sendEnrollmentConfirmationEmail({
@@ -22,7 +22,7 @@ export async function sendEnrollmentConfirmationEmail({
 }) {
   try {
     const { data, error } = await resend.emails.send({
-      from: 'IER Academy <noreply@ieracademy.com>',
+      from: "IER Academy <noreply@ieracademy.com>",
       to: [email],
       subject: `Enrollment Pending Payment - ${courseName}`,
       html: `
@@ -126,11 +126,9 @@ export async function sendEnrollmentConfirmationEmail({
     }
 
     // Log email sent
-    console.log(`Enrollment confirmation email sent to ${email} (ID: ${enrollmentId})`);
-
     return data;
   } catch (error) {
-    console.error('Failed to send enrollment confirmation email:', error);
+    console.error("Failed to send enrollment confirmation email:", error);
     throw error;
   }
 }
@@ -146,7 +144,7 @@ export async function sendPaymentConfirmationEmail({
 }) {
   try {
     const { data, error } = await resend.emails.send({
-      from: 'IER Academy <noreply@ieracademy.com>',
+      from: "IER Academy <noreply@ieracademy.com>",
       to: [email],
       subject: `Payment Confirmed - ${courseName}`,
       html: `
@@ -223,11 +221,9 @@ export async function sendPaymentConfirmationEmail({
       throw error;
     }
 
-    console.log(`Payment confirmation email sent to ${email} (ID: ${enrollmentId})`);
-
     return data;
   } catch (error) {
-    console.error('Failed to send payment confirmation email:', error);
+    console.error("Failed to send payment confirmation email:", error);
     throw error;
   }
 }
@@ -241,9 +237,9 @@ export async function sendContactFormNotification({
 }) {
   try {
     const { data, error } = await resend.emails.send({
-      from: 'IER Academy <noreply@ieracademy.com>',
-      to: ['info@ieracademy.com'], // Replace with your admin email
-      subject: `New Contact Form Submission: ${subject || 'No Subject'}`,
+      from: "IER Academy <noreply@ieracademy.com>",
+      to: ["info@ieracademy.com"], // Replace with your admin email
+      subject: `New Contact Form Submission: ${subject || "No Subject"}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h1 style="color: #2563eb;">New Contact Form Submission</h1>
@@ -251,8 +247,8 @@ export async function sendContactFormNotification({
           <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p><strong>Name:</strong> ${name}</p>
             <p><strong>Email:</strong> ${email}</p>
-            ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ''}
-            ${subject ? `<p><strong>Subject:</strong> ${subject}</p>` : ''}
+            ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ""}
+            ${subject ? `<p><strong>Subject:</strong> ${subject}</p>` : ""}
             
             <h3>Message:</h3>
             <p style="white-space: pre-wrap;">${message}</p>
@@ -269,7 +265,7 @@ export async function sendContactFormNotification({
 
     return data;
   } catch (error) {
-    console.error('Failed to send contact form notification:', error);
+    console.error("Failed to send contact form notification:", error);
     throw error;
   }
 }

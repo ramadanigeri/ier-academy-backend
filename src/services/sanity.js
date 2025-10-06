@@ -1,8 +1,5 @@
-// Since Sanity is running on the frontend, we'll need to fetch course data
-// This service will make requests to the frontend's Sanity API or
-// you can move Sanity client to backend if preferred
-
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+// Use frontend's Sanity API to avoid authentication issues
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
 export async function getCourseBySlug(slug) {
   try {
@@ -15,9 +12,10 @@ export async function getCourseBySlug(slug) {
       throw new Error(`Failed to fetch course: ${response.statusText}`);
     }
 
-    return await response.json();
+    const course = await response.json();
+    return course;
   } catch (error) {
-    console.error('Error fetching course from Sanity:', error);
+    console.error("Error fetching course from frontend API:", error);
     throw error;
   }
 }
