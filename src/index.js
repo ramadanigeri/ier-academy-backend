@@ -6,6 +6,7 @@ import enrollmentRoutes from "./routes/enrollment.js";
 import contactRoutes from "./routes/contact.js";
 import webhookRoutes from "./routes/webhooks.js";
 import adminRoutes from "./routes/admin.js";
+import eventsRoutes from "./routes/events.js";
 import pool from "./database/connection.js";
 
 dotenv.config();
@@ -53,6 +54,7 @@ app.use("/api/enrollment", enrollmentRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/events", eventsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

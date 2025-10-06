@@ -1,93 +1,55 @@
--- IER Academy Database Schema
-
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Create enrollment status enum
-CREATE TYPE enrollment_status AS ENUM ('pending', 'registered', 'cancelled');
-
--- Create payment status enum  
-CREATE TYPE payment_status AS ENUM ('pending', 'verified', 'cancelled');
-
--- Create email status enum
-CREATE TYPE email_status AS ENUM ('sent', 'failed', 'delivered', 'bounced');
-
--- Enrollments table
-CREATE TABLE enrollments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    course_slug VARCHAR(255) NOT NULL,
-    session_id VARCHAR(255) NOT NULL,
-    full_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    phone VARCHAR(50) NOT NULL,
-    id_card VARCHAR(100) NOT NULL,
-    address TEXT NOT NULL,
-    father_name VARCHAR(255) NOT NULL,
-    payment_ref VARCHAR(255),
-    status enrollment_status DEFAULT 'pending',
-    gdpr_consent BOOLEAN DEFAULT false,
-    marketing_consent BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- Events table
+CREATE TABLE IF NOT EXISTS events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title VARCHAR(255) NOT NULL,
+  slug VARCHAR(255) UNIQUE NOT NULL,
+  description TEXT,
+  event_date TIMESTAMP WITH TIME ZONE NOT NULL,
+  event_end_date TIMESTAMP WITH TIME ZONE,
+  location VARCHAR(255) NOT NULL,
+  capacity INTEGER NOT NULL CHECK (capacity > 0),
+  current_registrations INTEGER DEFAULT 0 CHECK (current_registrations >= 0),
+  price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+  currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+  event_type VARCHAR(50) NOT NULL,
+  featured_image JSONB,
+  related_course_id UUID REFERENCES courses(id),
+  instructor_id UUID REFERENCES instructors(id),
+  is_published BOOLEAN DEFAULT true,
+  tags TEXT[],
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Payments table (for bank transfer tracking)
-CREATE TABLE payments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    enrollment_id UUID NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
-    amount INTEGER NOT NULL, -- Amount in cents
-    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
-    status payment_status DEFAULT 'pending',
-    payment_date TIMESTAMP,
-    verified_by VARCHAR(255),
-    notes TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- Event registrations table
+CREATE TABLE IF NOT EXISTS event_registrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  first_name VARCHAR(100) NOT NULL,
+  last_name VARCHAR(100) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(50) NOT NULL,
+  registered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(event_id, email)
 );
 
--- Email log table
-CREATE TABLE email_log (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    enrollment_id UUID REFERENCES enrollments(id) ON DELETE CASCADE,
-    email_type VARCHAR(50) NOT NULL,
-    recipient_email VARCHAR(255) NOT NULL,
-    subject VARCHAR(500) NOT NULL,
-    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    provider_message_id VARCHAR(255),
-    status email_status DEFAULT 'sent'
-);
+-- Indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_events_event_date ON events(event_date);
+CREATE INDEX IF NOT EXISTS idx_events_is_published ON events(is_published);
+CREATE INDEX IF NOT EXISTS idx_events_slug ON events(slug);
+CREATE INDEX IF NOT EXISTS idx_event_registrations_event_id ON event_registrations(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_registrations_email ON event_registrations(email);
 
--- Contact messages table
-CREATE TABLE contact_messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    phone VARCHAR(50),
-    subject VARCHAR(500),
-    message TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create indexes for better performance
-CREATE INDEX idx_enrollments_course_session ON enrollments(course_slug, session_id);
-CREATE INDEX idx_enrollments_email ON enrollments(email);
-CREATE INDEX idx_enrollments_status ON enrollments(status);
-CREATE INDEX idx_payments_enrollment ON payments(enrollment_id);
-CREATE INDEX idx_payments_provider_id ON payments(provider_payment_id);
-CREATE INDEX idx_email_log_enrollment ON email_log(enrollment_id);
-CREATE INDEX idx_contact_messages_created ON contact_messages(created_at);
-
--- Update trigger for updated_at timestamps
+-- Trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.updated_at = NOW();
     RETURN NEW;
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_enrollments_updated_at BEFORE UPDATE
-    ON enrollments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_payments_updated_at BEFORE UPDATE
-    ON payments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_events_updated_at 
+    BEFORE UPDATE ON events 
+    FOR EACH ROW 
+    EXECUTE FUNCTION update_updated_at_column();

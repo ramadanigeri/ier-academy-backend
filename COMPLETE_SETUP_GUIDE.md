@@ -21,8 +21,6 @@ This is the **backend API server** for IER Academy. It handles:
 | **Node.js**    | Runtime environment | 18+     |
 | **Express.js** | Web framework       | 4.x     |
 | **PostgreSQL** | Database            | 14+     |
-| **Prisma ORM** | Database toolkit    | 6.x     |
-| **Stripe**     | Payment processing  | Latest  |
 | **Resend**     | Email service       | Latest  |
 | **dotenv**     | Environment config  | Latest  |
 

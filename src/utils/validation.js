@@ -16,6 +16,14 @@ export const enrollmentSchema = z.object({
   marketingConsent: z.boolean().optional().default(false),
 });
 
+// Event registration validation schema
+export const eventRegistrationSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  email: z.string().email('Invalid email address'),
+  phone: z.string().min(1, 'Phone number is required'),
+});
+
 // Contact form validation schema
 export const contactSchema = z.object({
   name: z.string().min(1, 'Name is required'),
