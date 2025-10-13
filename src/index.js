@@ -15,6 +15,8 @@ import coursesRoutes from "./routes/courses.js";
 import contentRoutes from "./routes/content.js";
 import supportingRoutes from "./routes/supporting.js";
 import uploadRoutes from "./routes/upload.js";
+import venuesRoutes from "./routes/venues.js";
+import eventSectionsRoutes from "./routes/eventSections.js";
 import pool from "./database/connection.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -77,6 +79,8 @@ app.use("/api/courses", coursesRoutes);
 app.use("/api/content", contentRoutes);
 app.use("/api/supporting", supportingRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/venues", venuesRoutes);
+app.use("/api/event-sections", eventSectionsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

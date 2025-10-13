@@ -8,6 +8,372 @@ import {
 
 const router = express.Router();
 
+// ========== CMS ROUTES (Admin) ==========
+
+// Get all events (CMS - returns all events including unpublished)
+router.get("/all", async (req, res) => {
+  try {
+    const { status, limit = 50, offset = 0 } = req.query;
+
+    let query = `
+      SELECT 
+        id, title, slug, description, event_date, event_end_date,
+        location, capacity, current_registrations, price, currency,
+        event_type, featured_image, is_published, sort_order, created_at
+      FROM events 
+    `;
+
+    const params = [];
+    let paramCount = 0;
+
+    // Only filter by published status if specifically requested
+    if (status === "upcoming") {
+      query += ` WHERE event_date > NOW()`;
+    } else if (status === "past") {
+      query += ` WHERE event_date <= NOW()`;
+    }
+
+    query += ` ORDER BY sort_order ASC, event_date ASC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+    });
+  } catch (error) {
+    console.error("Get events error:", error);
+    res.status(500).json({
+      error: "Failed to fetch events",
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+});
+
+// Create new event (CMS)
+router.post("/", async (req, res) => {
+  try {
+    const {
+      title,
+      slug,
+      description,
+      event_date,
+      event_end_date,
+      location,
+      capacity,
+      price,
+      currency,
+      event_type,
+      is_published,
+      sort_order,
+    } = req.body;
+
+    const query = `
+      INSERT INTO events (
+        title, slug, description, event_date, event_end_date,
+        location, capacity, price, currency, event_type,
+        is_published, sort_order, current_registrations
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 0)
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [
+      title,
+      slug,
+      description || null,
+      event_date,
+      event_end_date || null,
+      location,
+      capacity || 100,
+      price || 0,
+      currency || "EUR",
+      event_type || "workshop",
+      is_published || false,
+      sort_order || 0,
+    ]);
+
+    res.status(201).json({
+      data: result.rows[0],
+      message: "Event created successfully",
+    });
+  } catch (error) {
+    console.error("Create event error:", error);
+    res.status(500).json({
+      error: "Failed to create event",
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+});
+
+// Update event (CMS)
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      title,
+      slug,
+      description,
+      event_date,
+      event_end_date,
+      location,
+      capacity,
+      price,
+      currency,
+      event_type,
+      is_published,
+      sort_order,
+    } = req.body;
+
+    const query = `
+      UPDATE events SET
+        title = COALESCE($1, title),
+        slug = COALESCE($2, slug),
+        description = COALESCE($3, description),
+        event_date = COALESCE($4, event_date),
+        event_end_date = $5,
+        location = COALESCE($6, location),
+        capacity = COALESCE($7, capacity),
+        price = COALESCE($8, price),
+        currency = COALESCE($9, currency),
+        event_type = COALESCE($10, event_type),
+        is_published = COALESCE($11, is_published),
+        sort_order = COALESCE($12, sort_order)
+      WHERE id = $13
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [
+      title,
+      slug,
+      description,
+      event_date,
+      event_end_date,
+      location,
+      capacity,
+      price,
+      currency,
+      event_type,
+      is_published,
+      sort_order,
+      id,
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({
+      data: result.rows[0],
+      message: "Event updated successfully",
+    });
+  } catch (error) {
+    console.error("Update event error:", error);
+    res.status(500).json({
+      error: "Failed to update event",
+    });
+  }
+});
+
+// Delete event (CMS)
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = `DELETE FROM events WHERE id = $1 RETURNING *`;
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({
+      message: "Event deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete event error:", error);
+    res.status(500).json({
+      error: "Failed to delete event",
+    });
+  }
+});
+
+// POST - Register for an event (MUST be before /:id route)
+router.post("/:eventId/register", async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { firstName, lastName, email, schoolName } = req.body;
+
+    // Validate required fields
+    if (!firstName || !lastName || !email || !schoolName) {
+      return res
+        .status(400)
+        .json({ error: "All required fields must be filled" });
+    }
+
+    // Start transaction
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Check event capacity
+      const eventQuery = await client.query(
+        "SELECT capacity, current_registrations, title FROM events WHERE id = $1",
+        [eventId]
+      );
+
+      if (eventQuery.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Event not found" });
+      }
+
+      const event = eventQuery.rows[0];
+      const availableSeats = event.capacity - event.current_registrations;
+
+      if (availableSeats <= 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Event is fully booked" });
+      }
+
+      // Check if email already registered for this event
+      const existingReg = await client.query(
+        "SELECT id FROM event_registrations WHERE event_id = $1 AND email = $2",
+        [eventId, email]
+      );
+
+      if (existingReg.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ error: "Email already registered for this event" });
+      }
+
+      // Insert registration
+      await client.query(
+        `INSERT INTO event_registrations (event_id, first_name, last_name, email, school, event_title)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [eventId, firstName, lastName, email, schoolName, event.title]
+      );
+
+      // Update current_registrations
+      await client.query(
+        "UPDATE events SET current_registrations = current_registrations + 1 WHERE id = $1",
+        [eventId]
+      );
+
+      await client.query("COMMIT");
+
+      res.status(201).json({
+        message: "Registration successful",
+        data: {
+          firstName,
+          lastName,
+          email,
+          schoolName,
+          eventTitle: event.title,
+        },
+      });
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error("Event registration error:", error);
+    res.status(500).json({
+      error: "Registration failed",
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+});
+
+// Get single event by ID
+router.get("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const query = `
+      SELECT 
+        id, title, slug, description, event_date, event_end_date,
+        location, capacity, current_registrations, price, currency,
+        event_type, featured_image, is_published, sort_order, created_at
+      FROM events 
+      WHERE id = $1
+    `;
+
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Get event error:", error);
+    res.status(500).json({
+      error: "Failed to fetch event",
+    });
+  }
+});
+
+// ========== PUBLIC ROUTES ==========
+
+// Get public events (for frontend /events page)
+router.get("/", async (req, res) => {
+  try {
+    const { status, limit = 50, offset = 0 } = req.query;
+
+    let query = `
+      SELECT 
+        id, title, slug, description, event_date, event_end_date,
+        location, capacity, current_registrations, price, currency,
+        event_type, featured_image, is_published, sort_order, created_at
+      FROM events 
+      WHERE is_published = true
+    `;
+
+    const params = [];
+    let paramCount = 0;
+
+    if (status === "upcoming") {
+      query += ` AND event_date > NOW()`;
+    } else if (status === "past") {
+      query += ` AND event_date <= NOW()`;
+    }
+
+    query += ` ORDER BY sort_order ASC, event_date ASC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
+    params.push(parseInt(limit), parseInt(offset));
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      data: result.rows,
+      count: result.rows.length,
+    });
+  } catch (error) {
+    console.error("Get public events error:", error);
+    res.status(500).json({
+      error: "Failed to fetch events",
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
+    });
+  }
+});
+
 // Register for an event
 router.post("/:eventId/register", async (req, res) => {
   try {
@@ -853,50 +1219,6 @@ router.get("/:eventId/registrations", async (req, res) => {
     console.error("Get registrations error:", error);
     res.status(500).json({
       message: "Failed to fetch registrations",
-      error:
-        process.env.NODE_ENV === "development"
-          ? error.message
-          : "Internal server error",
-    });
-  }
-});
-
-// Get all events
-router.get("/", async (req, res) => {
-  try {
-    const { status, limit = 50, offset = 0 } = req.query;
-
-    let query = `
-      SELECT 
-        id, title, slug, description, event_date, event_end_date,
-        location, capacity, current_registrations, price, currency,
-        event_type, featured_image, is_published, created_at
-      FROM events 
-      WHERE is_published = true
-    `;
-
-    const params = [];
-    let paramCount = 0;
-
-    if (status === "upcoming") {
-      query += ` AND event_date > NOW()`;
-    } else if (status === "past") {
-      query += ` AND event_date <= NOW()`;
-    }
-
-    query += ` ORDER BY event_date ASC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
-    params.push(parseInt(limit), parseInt(offset));
-
-    const result = await pool.query(query, params);
-
-    res.json({
-      events: result.rows,
-      count: result.rows.length,
-    });
-  } catch (error) {
-    console.error("Get events error:", error);
-    res.status(500).json({
-      message: "Failed to fetch events",
       error:
         process.env.NODE_ENV === "development"
           ? error.message
