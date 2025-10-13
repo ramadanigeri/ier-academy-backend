@@ -7,6 +7,79 @@ import { getCourseBySlug } from "../services/sanity.js";
 
 const router = express.Router();
 
+// Create enrollment from frontend CMS (new endpoint)
+router.post("/", async (req, res) => {
+  try {
+    const {
+      courseSlug,
+      sessionId,
+      studentName,
+      studentEmail,
+      studentPhone,
+      studentIdCard,
+      studentAddress,
+      fatherName,
+      amount,
+      currency,
+      gdprConsent,
+    } = req.body;
+
+    // Validate required fields
+    if (!courseSlug || !sessionId || !studentName || !studentEmail) {
+      return res.status(400).json({
+        error: "Missing required fields",
+      });
+    }
+
+    // Create enrollment record
+    const enrollmentId = uuidv4();
+
+    const result = await pool.query(
+      `INSERT INTO enrollments (
+        id, course_slug, session_id, full_name, email, phone,
+        id_card, address, father_name, gdpr_consent, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *`,
+      [
+        enrollmentId,
+        courseSlug,
+        parseInt(sessionId), // Convert to integer
+        studentName,
+        studentEmail,
+        studentPhone,
+        studentIdCard,
+        studentAddress,
+        fatherName,
+        gdprConsent,
+        "enrolled",
+      ]
+    );
+
+    const enrollment = result.rows[0];
+
+    // Create initial payment record
+    await pool.query(
+      `INSERT INTO payments (
+        enrollment_id, amount, currency, status
+      ) VALUES ($1, $2, $3, $4)`,
+      [enrollmentId, parseFloat(amount) || 0, currency || "EUR", "pending"]
+    );
+
+    res.status(201).json({
+      success: true,
+      enrollmentId: enrollment.id,
+      status: "enrolled",
+      message: "Enrollment created successfully",
+    });
+  } catch (error) {
+    console.error("Enrollment creation error:", error);
+    res.status(500).json({
+      error: "Failed to create enrollment",
+      details: error.message,
+    });
+  }
+});
+
 // Create enrollment (no payment processing)
 router.post("/checkout", async (req, res) => {
   try {
