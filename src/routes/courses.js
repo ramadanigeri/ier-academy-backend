@@ -325,6 +325,8 @@ router.post("/courses", async (req, res) => {
       gallery_urls = [],
       is_published = false,
       is_featured = false,
+      is_eligible_for_installments = false,
+      is_multi_module = true,
       sort_order = 0,
     } = req.body;
 
@@ -338,8 +340,8 @@ router.post("/courses", async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO courses 
-       (slug, title, description, short_description, price, currency, duration, level, instructor_id, category_id, thumbnail_url, gallery_urls, is_published, is_featured, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       (slug, title, description, short_description, price, currency, duration, level, instructor_id, category_id, thumbnail_url, gallery_urls, is_published, is_featured, is_eligible_for_installments, is_multi_module, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
       [
         slug,
@@ -356,6 +358,8 @@ router.post("/courses", async (req, res) => {
         gallery_urls,
         is_published,
         is_featured,
+        is_eligible_for_installments,
+        is_multi_module,
         sort_order,
       ]
     );
@@ -401,6 +405,8 @@ router.put("/courses/:id", async (req, res) => {
       gallery_urls,
       is_published,
       is_featured,
+      is_eligible_for_installments,
+      is_multi_module,
       sort_order,
     } = req.body;
 
@@ -408,8 +414,8 @@ router.put("/courses/:id", async (req, res) => {
       `UPDATE courses 
        SET slug = $1, title = $2, description = $3, short_description = $4, price = $5, currency = $6,
            duration = $7, level = $8, instructor_id = $9, category_id = $10, thumbnail_url = $11, gallery_urls = $12,
-           is_published = $13, is_featured = $14, sort_order = $15, updated_at = NOW()
-       WHERE id = $16
+           is_published = $13, is_featured = $14, is_eligible_for_installments = $15, is_multi_module = $16, sort_order = $17, updated_at = NOW()
+       WHERE id = $18
        RETURNING *`,
       [
         slug,
@@ -426,6 +432,8 @@ router.put("/courses/:id", async (req, res) => {
         gallery_urls,
         is_published,
         is_featured,
+        is_eligible_for_installments,
+        is_multi_module,
         sort_order,
         id,
       ]

@@ -52,8 +52,8 @@ const upload = multer({
   fileFilter: fileFilter,
 });
 
-// Single file upload endpoint
-router.post("/single", upload.single("file"), (req, res) => {
+// Single file upload endpoint (default)
+router.post("/", upload.single("file"), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -62,19 +62,18 @@ router.post("/single", upload.single("file"), (req, res) => {
       });
     }
 
-    // Return the file URL
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // Return the file URL (absolute path)
+    const backendUrl =
+      process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const fileUrl = `${backendUrl}/uploads/${req.file.filename}`;
 
     res.json({
       success: true,
-      data: {
-        filename: req.file.filename,
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        url: fileUrl,
-      },
-      message: "File uploaded successfully",
+      url: fileUrl,
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
     });
   } catch (error) {
     console.error("Upload error:", error);
@@ -147,6 +146,31 @@ router.delete("/:filename", (req, res) => {
       error: "Failed to delete file",
     });
   }
+});
+
+// Error handling middleware for multer
+router.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({
+        success: false,
+        error: "File is too large. Maximum size is 5MB",
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+    });
+  }
+
+  if (error.message === "Only image files are allowed!") {
+    return res.status(400).json({
+      success: false,
+      error: error.message,
+    });
+  }
+
+  next(error);
 });
 
 export default router;

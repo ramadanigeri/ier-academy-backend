@@ -31,6 +31,52 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const parsedSessionId = parseInt(sessionId);
+
+    // Check session availability and status
+    const sessionCheck = await pool.query(
+      `SELECT id, capacity, enrolled_count, status, is_published
+       FROM sessions
+       WHERE id = $1`,
+      [parsedSessionId]
+    );
+
+    if (sessionCheck.rows.length === 0) {
+      return res.status(404).json({
+        error: "Session not found",
+      });
+    }
+
+    const session = sessionCheck.rows[0];
+
+    // Check if session is published
+    if (!session.is_published) {
+      return res.status(400).json({
+        error: "Session is not available for enrollment",
+      });
+    }
+
+    // Check if session status is registration_open
+    if (session.status !== "registration_open") {
+      return res.status(400).json({
+        error: `Session is ${session.status === "coming_soon" ? "not yet open" : "fully booked"}`,
+      });
+    }
+
+    // Check available spots
+    const availableSpots = session.capacity - (session.enrolled_count || 0);
+    if (availableSpots <= 0) {
+      // Update session status to fully_booked
+      await pool.query(
+        `UPDATE sessions SET status = 'fully_booked' WHERE id = $1`,
+        [parsedSessionId]
+      );
+
+      return res.status(400).json({
+        error: "Session is fully booked",
+      });
+    }
+
     // Create enrollment record
     const enrollmentId = uuidv4();
 
@@ -43,7 +89,7 @@ router.post("/", async (req, res) => {
       [
         enrollmentId,
         courseSlug,
-        parseInt(sessionId), // Convert to integer
+        parsedSessionId,
         studentName,
         studentEmail,
         studentPhone,
@@ -56,6 +102,19 @@ router.post("/", async (req, res) => {
     );
 
     const enrollment = result.rows[0];
+
+    // Increment enrolled_count and check if session is now full
+    const newEnrolledCount = (session.enrolled_count || 0) + 1;
+    const isFull = newEnrolledCount >= session.capacity;
+
+    await pool.query(
+      `UPDATE sessions 
+       SET enrolled_count = $1, 
+           status = CASE WHEN $2 THEN 'fully_booked' ELSE status END,
+           updated_at = NOW()
+       WHERE id = $3`,
+      [newEnrolledCount, isFull, parsedSessionId]
+    );
 
     // Create initial payment record
     await pool.query(
@@ -70,6 +129,7 @@ router.post("/", async (req, res) => {
       enrollmentId: enrollment.id,
       status: "enrolled",
       message: "Enrollment created successfully",
+      availableSpots: isFull ? 0 : session.capacity - newEnrolledCount,
     });
   } catch (error) {
     console.error("Enrollment creation error:", error);
