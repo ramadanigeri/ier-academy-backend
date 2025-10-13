@@ -2,12 +2,23 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 import enrollmentRoutes from "./routes/enrollment.js";
 import contactRoutes from "./routes/contact.js";
 import webhookRoutes from "./routes/webhooks.js";
 import adminRoutes from "./routes/admin.js";
 import eventsRoutes from "./routes/events.js";
+import dashboardRoutes from "./routes/dashboard.js";
+import cmsRoutes from "./routes/cms.js";
+import coursesRoutes from "./routes/courses.js";
+import contentRoutes from "./routes/content.js";
+import supportingRoutes from "./routes/supporting.js";
+import uploadRoutes from "./routes/upload.js";
 import pool from "./database/connection.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -29,6 +40,9 @@ app.use(cors(corsOptions));
 app.use("/api/webhooks", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from uploads directory
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // Health check endpoint
 app.get("/health", async (req, res) => {
@@ -55,6 +69,14 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/events", eventsRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+
+// CMS API routes
+app.use("/api/cms", cmsRoutes);
+app.use("/api/courses", coursesRoutes);
+app.use("/api/content", contentRoutes);
+app.use("/api/supporting", supportingRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

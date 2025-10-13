@@ -314,13 +314,15 @@ export async function sendEventRegistrationConfirmation({
               </tr>
               <tr>
                 <td style="padding: 8px 0;"><strong>Date:</strong></td>
-                <td style="padding: 8px 0; text-align: right;">${new Date(event.eventDate).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
+                <td style="padding: 8px 0; text-align: right;">${new Date(
+                  event.eventDate
+                ).toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
                 })}</td>
               </tr>
               <tr>
@@ -329,7 +331,7 @@ export async function sendEventRegistrationConfirmation({
               </tr>
               <tr>
                 <td style="padding: 8px 0;"><strong>Price:</strong></td>
-                <td style="padding: 8px 0; text-align: right; color: #2563eb; font-size: 18px;"><strong>${event.price === 0 ? 'Free' : `${event.price} ${event.currency}`}</strong></td>
+                <td style="padding: 8px 0; text-align: right; color: #2563eb; font-size: 18px;"><strong>${event.price === 0 ? "Free" : `${event.price} ${event.currency}`}</strong></td>
               </tr>
               <tr>
                 <td style="padding: 8px 0;"><strong>Registration ID:</strong></td>
@@ -338,7 +340,9 @@ export async function sendEventRegistrationConfirmation({
             </table>
           </div>
           
-          ${event.price > 0 ? `
+          ${
+            event.price > 0
+              ? `
           <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 20px; margin: 20px 0;">
             <h2 style="margin-top: 0; color: #78350f;">⚠️ Payment Instructions</h2>
             <p style="margin-bottom: 15px; color: #78350f;"><strong>Please complete your payment via bank transfer using the details below:</strong></p>
@@ -374,25 +378,31 @@ export async function sendEventRegistrationConfirmation({
               <p style="margin: 0; text-align: center; font-size: 12px;">Please include this in your transfer reference</p>
             </div>
           </div>
-          ` : `
+          `
+              : `
           <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 20px; margin: 20px 0;">
             <h2 style="margin-top: 0; color: #166534;">🎉 Free Event Registration</h2>
             <p style="margin-bottom: 15px; color: #166534;"><strong>Great news! This is a free event - no payment required.</strong></p>
             <p style="color: #166534;">Your registration is confirmed and you're all set to attend!</p>
           </div>
-          `}
+          `
+          }
           
           <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="margin-top: 0; color: #1f2937;">What Happens Next?</h3>
             <ol style="padding-left: 20px; color: #4b5563; line-height: 1.8;">
-              ${event.price > 0 ? `
+              ${
+                event.price > 0
+                  ? `
               <li>Complete the bank transfer using the details above</li>
               <li>Make sure to include your <strong>Registration ID</strong> in the payment reference</li>
               <li>Keep your payment receipt for your records</li>
               <li>Your payment will be verified within 1-2 business days</li>
-              ` : `
+              `
+                  : `
               <li>No payment required - you're all set!</li>
-              `}
+              `
+              }
               <li>You'll receive event details and materials 1 week before the event</li>
               <li>Save this registration ID for your records: <strong>${registrationId}</strong></li>
             </ol>
@@ -418,7 +428,10 @@ export async function sendEventRegistrationConfirmation({
 
     return data;
   } catch (error) {
-    console.error("Failed to send event registration confirmation email:", error);
+    console.error(
+      "Failed to send event registration confirmation email:",
+      error
+    );
     throw error;
   }
 }

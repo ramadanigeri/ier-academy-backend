@@ -1,7 +1,82 @@
 import express from "express";
 import pool from "../database/connection.js";
+import jwt from "jsonwebtoken";
 
 const router = express.Router();
+
+// Simple admin credentials - In production, use proper authentication
+const ADMIN_CREDENTIALS = {
+  username: process.env.ADMIN_USERNAME ,
+  password: process.env.ADMIN_PASSWORD,
+};
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
+
+// Admin login endpoint
+router.post("/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // Validate input
+    if (!username || !password) {
+      return res.status(400).json({
+        error: 'Username and password are required'
+      });
+    }
+
+    // Check credentials
+    if (username !== ADMIN_CREDENTIALS.username || password !== ADMIN_CREDENTIALS.password) {
+      return res.status(401).json({
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Create JWT token
+    const token = jwt.sign(
+      { 
+        username, 
+        role: 'admin',
+        iat: Math.floor(Date.now() / 1000),
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Return success response
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token,
+      user: {
+        username,
+        role: 'admin',
+      },
+    });
+
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({
+      error: 'Internal server error'
+    });
+  }
+});
+
+// Admin logout endpoint
+router.post("/logout", async (req, res) => {
+  try {
+    // In a real application, you might want to blacklist the token
+    // For now, we'll just return success
+    res.json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error('Admin logout error:', error);
+    res.status(500).json({
+      error: 'Internal server error'
+    });
+  }
+});
 
 // Simple admin dashboard with working buttons
 router.get("/dashboard", async (req, res) => {
@@ -343,6 +418,68 @@ router.get("/dashboard", async (req, res) => {
   } catch (error) {
     console.error("Admin dashboard error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Handle status updates via PUT requests (from frontend API calls)
+router.put("/enrollment/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, notes, updatedBy } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ error: "Status is required" });
+    }
+
+    // Update enrollment status
+    await pool.query("UPDATE enrollments SET status = $1 WHERE id = $2", [
+      status,
+      id,
+    ]);
+
+    // Handle payment record updates based on new workflow
+    if (status === "payment_confirmed") {
+      // Check if payment record exists
+      const existingPayment = await pool.query(
+        "SELECT id FROM payments WHERE enrollment_id = $1",
+        [id]
+      );
+
+      if (existingPayment.rows.length > 0) {
+        // Update existing payment
+        await pool.query(
+          "UPDATE payments SET status = 'verified', verified_by = $1, payment_date = NOW() WHERE enrollment_id = $2",
+          [updatedBy || 'admin', id]
+        );
+      } else {
+        // Insert new payment record
+        await pool.query(
+          "INSERT INTO payments (enrollment_id, status, verified_by, payment_date) VALUES ($1, 'verified', $2, NOW())",
+          [id, updatedBy || 'admin']
+        );
+      }
+    } else if (status === "enrolled") {
+      // Update payment status to verified (final status) and reduce course spots
+      await pool.query(
+        "UPDATE payments SET status = 'verified' WHERE enrollment_id = $1",
+        [id]
+      );
+
+      // TODO: Implement course capacity management
+      // Reduce available spots in course by 1 when student is registered
+    }
+
+    res.json({
+      success: true,
+      message: 'Enrollment status updated successfully',
+      enrollmentId: id,
+      status: status,
+      updatedBy: updatedBy || 'admin'
+    });
+
+  } catch (error) {
+    console.error("Status update error:", error);
+    res.status(500).json({ error: "Failed to update status" });
   }
 });
 

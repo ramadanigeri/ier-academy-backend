@@ -13,8 +13,8 @@ CREATE TABLE IF NOT EXISTS events (
   currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
   event_type VARCHAR(50) NOT NULL,
   featured_image JSONB,
-  related_course_id UUID REFERENCES courses(id),
-  instructor_id UUID REFERENCES instructors(id),
+  related_course_id UUID,
+  instructor_id UUID,
   is_published BOOLEAN DEFAULT true,
   tags TEXT[],
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS event_registrations (
   last_name VARCHAR(100) NOT NULL,
   email VARCHAR(255) NOT NULL,
   phone VARCHAR(50) NOT NULL,
+  school VARCHAR(255),
+  event_title VARCHAR(255),
   registered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(event_id, email)
 );
