@@ -277,4 +277,113 @@ router.get("/stats", async (req, res) => {
   }
 });
 
+// Update event registration
+router.put("/registrations/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { first_name, last_name, email, phone, school } = req.body;
+
+    // Validate required fields
+    if (!first_name || !last_name || !email) {
+      return res.status(400).json({
+        success: false,
+        error: "First name, last name, and email are required",
+      });
+    }
+
+    // Check if registration exists
+    const checkQuery = "SELECT * FROM event_registrations WHERE id = $1";
+    const checkResult = await pool.query(checkQuery, [id]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Registration not found",
+      });
+    }
+
+    // Update registration
+    const updateQuery = `
+      UPDATE event_registrations 
+      SET 
+        first_name = $1,
+        last_name = $2,
+        email = $3,
+        phone = $4,
+        school = $5
+      WHERE id = $6
+      RETURNING *
+    `;
+
+    const result = await pool.query(updateQuery, [
+      first_name,
+      last_name,
+      email,
+      phone || null,
+      school || null,
+      id,
+    ]);
+
+    res.json({
+      success: true,
+      message: "Registration updated successfully",
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error updating registration:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update registration",
+      message: error.message,
+    });
+  }
+});
+
+// Delete event registration
+router.delete("/registrations/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get registration details before deletion
+    const registrationQuery = `
+      SELECT er.*, e.id as event_id, e.current_registrations
+      FROM event_registrations er
+      JOIN events e ON er.event_id = e.id
+      WHERE er.id = $1
+    `;
+    const registrationResult = await pool.query(registrationQuery, [id]);
+
+    if (registrationResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Registration not found",
+      });
+    }
+
+    const registration = registrationResult.rows[0];
+
+    // Delete registration
+    await pool.query("DELETE FROM event_registrations WHERE id = $1", [id]);
+
+    // Update event current_registrations count
+    const newCount = Math.max(0, (registration.current_registrations || 1) - 1);
+    await pool.query(
+      "UPDATE events SET current_registrations = $1 WHERE id = $2",
+      [newCount, registration.event_id]
+    );
+
+    res.json({
+      success: true,
+      message: "Registration deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting registration:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete registration",
+      message: error.message,
+    });
+  }
+});
+
 export default router;

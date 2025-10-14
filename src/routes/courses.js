@@ -199,22 +199,43 @@ router.get("/courses", async (req, res) => {
 
     if (search) {
       paramCount++;
-      query += ` AND (c.title ILIKE $${paramCount} OR c.description ILIKE $${paramCount} OR i.name ILIKE $${paramCount})`;
+      query += ` AND (c.title ILIKE $${paramCount} OR c.description ILIKE $${paramCount + 1} OR i.name ILIKE $${paramCount + 2})`;
       params.push(`%${search}%`);
+      params.push(`%${search}%`);
+      params.push(`%${search}%`);
+      paramCount += 2; // Update paramCount for the additional parameters
     }
 
-    // Get total count - use a simpler approach
-    const countQuery = `
+    // Get total count - build query dynamically to match main query parameters
+    let countQuery = `
       SELECT COUNT(*) 
       FROM courses c
       LEFT JOIN instructors i ON c.instructor_id = i.id
       WHERE 1=1
-      ${published_only === "true" ? "AND c.is_published = true" : ""}
-      ${featured_only === "true" ? "AND c.is_featured = true" : ""}
-      ${category_id ? "AND c.category_id = $1" : ""}
-      ${instructor_id ? "AND c.instructor_id = $2" : ""}
-      ${search ? "AND (c.title ILIKE $3 OR c.description ILIKE $3 OR i.name ILIKE $3)" : ""}
     `;
+
+    if (published_only === "true") {
+      countQuery += ` AND c.is_published = true`;
+    }
+
+    if (featured_only === "true") {
+      countQuery += ` AND c.is_featured = true`;
+    }
+
+    let countParamIndex = 1;
+    if (category_id) {
+      countQuery += ` AND c.category_id = $${countParamIndex}`;
+      countParamIndex++;
+    }
+
+    if (instructor_id) {
+      countQuery += ` AND c.instructor_id = $${countParamIndex}`;
+      countParamIndex++;
+    }
+
+    if (search) {
+      countQuery += ` AND (c.title ILIKE $${countParamIndex} OR c.description ILIKE $${countParamIndex + 1} OR i.name ILIKE $${countParamIndex + 2})`;
+    }
 
     const countResult = await pool.query(countQuery, params);
     const totalCount = parseInt(countResult.rows[0].count);

@@ -395,26 +395,92 @@ router.put("/instructors/:id", async (req, res) => {
   }
 });
 
-// Delete instructor
-router.delete("/instructors/:id", async (req, res) => {
+// Get courses assigned to an instructor
+router.get("/instructors/:id/courses", async (req, res) => {
   try {
     const { id } = req.params;
 
     const result = await pool.query(
-      "DELETE FROM instructors WHERE id = $1 RETURNING *",
+      `SELECT c.id, c.title, c.slug, c.description 
+       FROM courses c 
+       WHERE c.instructor_id = $1`,
       [id]
     );
 
-    if (result.rows.length === 0) {
+    res.json({
+      success: true,
+      data: result.rows,
+    });
+  } catch (error) {
+    console.error("Error fetching instructor courses:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch instructor courses",
+    });
+  }
+});
+
+// Delete instructor with options
+router.delete("/instructors/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reassignTo, removeAssignments } = req.body;
+
+    // First, get the instructor to verify it exists
+    const instructorResult = await pool.query(
+      "SELECT * FROM instructors WHERE id = $1",
+      [id]
+    );
+
+    if (instructorResult.rows.length === 0) {
       return res.status(404).json({
         success: false,
         error: "Instructor not found",
       });
     }
 
+    // Check if instructor is assigned to any courses
+    const coursesResult = await pool.query(
+      "SELECT id, title FROM courses WHERE instructor_id = $1",
+      [id]
+    );
+
+    if (coursesResult.rows.length > 0) {
+      // If reassignTo is provided, reassign courses to another instructor
+      if (reassignTo) {
+        await pool.query(
+          "UPDATE courses SET instructor_id = $1 WHERE instructor_id = $2",
+          [reassignTo, id]
+        );
+      } 
+      // If removeAssignments is true, set instructor_id to NULL
+      else if (removeAssignments) {
+        await pool.query(
+          "UPDATE courses SET instructor_id = NULL WHERE instructor_id = $1",
+          [id]
+        );
+      } 
+      // Otherwise, return conflict with course information
+      else {
+        return res.status(409).json({
+          success: false,
+          error: "Cannot delete instructor. This instructor is assigned to one or more courses.",
+          affectedCourses: coursesResult.rows,
+        });
+      }
+    }
+
+    // Now delete the instructor
+    const deleteResult = await pool.query(
+      "DELETE FROM instructors WHERE id = $1 RETURNING *",
+      [id]
+    );
+
     res.json({
       success: true,
       message: "Instructor deleted successfully",
+      affectedCourses: coursesResult.rows,
+      action: reassignTo ? 'reassigned' : removeAssignments ? 'removed_assignments' : 'none'
     });
   } catch (error) {
     console.error("Error deleting instructor:", error);

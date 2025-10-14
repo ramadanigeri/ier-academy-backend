@@ -367,31 +367,55 @@ router.patch("/:id/status", async (req, res) => {
 // Get all enrollments (admin only - with filters)
 router.get("/", async (req, res) => {
   try {
-    const { status, courseSlug, sessionId } = req.query;
+    const { status, courseSlug, sessionId, search } = req.query;
 
-    let query = "SELECT * FROM enrollments WHERE 1=1";
+    let query = `
+      SELECT 
+        e.id, e.course_slug, e.session_id, e.full_name, e.email, e.phone,
+        e.id_card, e.address, e.father_name, e.gdpr_consent, e.status,
+        e.created_at, e.updated_at,
+        c.title as course_title,
+        s.title as session_title
+      FROM enrollments e
+      LEFT JOIN courses c ON e.course_slug = c.slug
+      LEFT JOIN sessions s ON e.session_id = s.id
+      WHERE 1=1
+    `;
     const params = [];
     let paramIndex = 1;
 
     if (status) {
-      query += ` AND status = $${paramIndex}`;
+      query += ` AND e.status = $${paramIndex}`;
       params.push(status);
       paramIndex++;
     }
 
     if (courseSlug) {
-      query += ` AND course_slug = $${paramIndex}`;
+      // If courseSlug is actually a course ID, join with courses table to match by ID
+      query += ` AND (e.course_slug = $${paramIndex} OR c.id = $${paramIndex})`;
       params.push(courseSlug);
       paramIndex++;
     }
 
     if (sessionId) {
-      query += ` AND session_id = $${paramIndex}`;
+      query += ` AND e.session_id = $${paramIndex}`;
       params.push(sessionId);
       paramIndex++;
     }
 
-    query += " ORDER BY created_at DESC";
+    if (search) {
+      query += ` AND (
+        e.full_name ILIKE $${paramIndex} OR 
+        e.email ILIKE $${paramIndex} OR 
+        e.phone ILIKE $${paramIndex} OR
+        c.title ILIKE $${paramIndex} OR
+        s.title ILIKE $${paramIndex}
+      )`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    query += " ORDER BY e.created_at DESC";
 
     const result = await pool.query(query, params);
 
@@ -403,6 +427,120 @@ router.get("/", async (req, res) => {
   } catch (error) {
     console.error("Get enrollments error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update enrollment
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { full_name, email, phone, id_card, address, father_name } = req.body;
+
+    // Validate required fields
+    if (!full_name || !email) {
+      return res.status(400).json({
+        success: false,
+        error: "Full name and email are required",
+      });
+    }
+
+    // Check if enrollment exists
+    const checkQuery = "SELECT * FROM enrollments WHERE id = $1";
+    const checkResult = await pool.query(checkQuery, [id]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Enrollment not found",
+      });
+    }
+
+    // Update enrollment
+    const updateQuery = `
+      UPDATE enrollments 
+      SET 
+        full_name = $1,
+        email = $2,
+        phone = $3,
+        id_card = $4,
+        address = $5,
+        father_name = $6,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING *
+    `;
+
+    const result = await pool.query(updateQuery, [
+      full_name,
+      email,
+      phone || null,
+      id_card || null,
+      address || null,
+      father_name || null,
+      id,
+    ]);
+
+    res.json({
+      success: true,
+      message: "Enrollment updated successfully",
+      data: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error updating enrollment:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update enrollment",
+      message: error.message,
+    });
+  }
+});
+
+// Delete enrollment
+router.delete("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get enrollment details before deletion
+    const enrollmentQuery = `
+      SELECT e.*, s.id as session_id, s.enrolled_count
+      FROM enrollments e
+      LEFT JOIN sessions s ON e.session_id = s.id
+      WHERE e.id = $1
+    `;
+    const enrollmentResult = await pool.query(enrollmentQuery, [id]);
+
+    if (enrollmentResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Enrollment not found",
+      });
+    }
+
+    const enrollment = enrollmentResult.rows[0];
+
+    // Delete enrollment
+    await pool.query("DELETE FROM enrollments WHERE id = $1", [id]);
+
+    // Update session enrolled_count if session exists
+    if (enrollment.session_id) {
+      const newCount = Math.max(0, (enrollment.enrolled_count || 1) - 1);
+      await pool.query(
+        "UPDATE sessions SET enrolled_count = $1 WHERE id = $2",
+        [newCount, enrollment.session_id]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: "Enrollment deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting enrollment:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete enrollment",
+      message: error.message,
+    });
   }
 });
 

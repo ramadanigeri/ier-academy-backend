@@ -337,23 +337,28 @@ router.get("/", async (req, res) => {
 
     let query = `
       SELECT 
-        id, title, slug, description, event_date, event_end_date,
-        location, capacity, current_registrations, price, currency,
-        event_type, featured_image, is_published, sort_order, created_at
-      FROM events 
-      WHERE is_published = true
+        e.id, e.title, e.slug, e.description, e.event_date, e.event_end_date,
+        e.location, e.capacity, e.price, e.currency,
+        e.event_type, e.featured_image, e.is_published, e.sort_order, e.created_at,
+        COUNT(er.id) as current_registrations
+      FROM events e
+      LEFT JOIN event_registrations er ON e.id = er.event_id
+      WHERE e.is_published = true
     `;
 
     const params = [];
     let paramCount = 0;
 
     if (status === "upcoming") {
-      query += ` AND event_date > NOW()`;
+      query += ` AND e.event_date > NOW()`;
     } else if (status === "past") {
-      query += ` AND event_date <= NOW()`;
+      query += ` AND e.event_date <= NOW()`;
     }
 
-    query += ` ORDER BY sort_order ASC, event_date ASC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
+    query += ` GROUP BY e.id, e.title, e.slug, e.description, e.event_date, e.event_end_date,
+               e.location, e.capacity, e.price, e.currency,
+               e.event_type, e.featured_image, e.is_published, e.sort_order, e.created_at
+               ORDER BY e.sort_order ASC, e.event_date ASC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
     params.push(parseInt(limit), parseInt(offset));
 
     const result = await pool.query(query, params);
