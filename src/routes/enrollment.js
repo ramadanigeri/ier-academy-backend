@@ -63,8 +63,18 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Check available spots
-    const availableSpots = session.capacity - (session.enrolled_count || 0);
+    // Check available spots (only count registered/payment_confirmed enrollments)
+    const registeredCountQuery = await pool.query(
+      `SELECT COUNT(*) as registered_count 
+       FROM enrollments 
+       WHERE session_id = $1 AND status IN ('registered', 'payment_confirmed')`,
+      [parsedSessionId]
+    );
+    const registeredCount = parseInt(
+      registeredCountQuery.rows[0].registered_count
+    );
+    const availableSpots = session.capacity - registeredCount;
+
     if (availableSpots <= 0) {
       // Update session status to fully_booked
       await pool.query(
@@ -103,18 +113,8 @@ router.post("/", async (req, res) => {
 
     const enrollment = result.rows[0];
 
-    // Increment enrolled_count and check if session is now full
-    const newEnrolledCount = (session.enrolled_count || 0) + 1;
-    const isFull = newEnrolledCount >= session.capacity;
-
-    await pool.query(
-      `UPDATE sessions 
-       SET enrolled_count = $1, 
-           status = CASE WHEN $2 THEN 'fully_booked' ELSE status END,
-           updated_at = NOW()
-       WHERE id = $3`,
-      [newEnrolledCount, isFull, parsedSessionId]
-    );
+    // Don't increment enrolled_count here - seats are only reduced when payment is confirmed
+    // The session capacity remains available until the user is fully registered
 
     // Create initial payment record
     await pool.query(
@@ -129,7 +129,7 @@ router.post("/", async (req, res) => {
       enrollmentId: enrollment.id,
       status: "enrolled",
       message: "Enrollment created successfully",
-      availableSpots: isFull ? 0 : session.capacity - newEnrolledCount,
+      availableSpots: availableSpots,
     });
   } catch (error) {
     console.error("Enrollment creation error:", error);
@@ -353,6 +353,37 @@ router.patch("/:id/status", async (req, res) => {
       );
     }
 
+    // Handle seat counting based on status change
+    if (enrollment.session_id) {
+      // Get current registered count for this session
+      const registeredCountQuery = await pool.query(
+        `SELECT COUNT(*) as registered_count 
+         FROM enrollments 
+         WHERE session_id = $1 AND status IN ('registered', 'payment_confirmed')`,
+        [enrollment.session_id]
+      );
+      const registeredCount = parseInt(
+        registeredCountQuery.rows[0].registered_count
+      );
+
+      // Get session capacity
+      const sessionQuery = await pool.query(
+        `SELECT capacity FROM sessions WHERE id = $1`,
+        [enrollment.session_id]
+      );
+      const sessionCapacity = sessionQuery.rows[0]?.capacity || 0;
+
+      // Update session status based on registered count
+      const isFull = registeredCount >= sessionCapacity;
+      await pool.query(
+        `UPDATE sessions 
+         SET status = CASE WHEN $1 THEN 'fully_booked' ELSE 'registration_open' END,
+             updated_at = NOW()
+         WHERE id = $2`,
+        [isFull, enrollment.session_id]
+      );
+    }
+
     res.json({
       success: true,
       enrollment: result.rows[0],
@@ -536,12 +567,38 @@ router.delete("/:id", async (req, res) => {
     // Delete enrollment
     await pool.query("DELETE FROM enrollments WHERE id = $1", [id]);
 
-    // Update session enrolled_count if session exists
-    if (enrollment.session_id) {
-      const newCount = Math.max(0, (enrollment.enrolled_count || 1) - 1);
+    // Update session status if the deleted enrollment was registered/payment_confirmed
+    if (
+      enrollment.session_id &&
+      enrollment.status &&
+      ["registered", "payment_confirmed"].includes(enrollment.status)
+    ) {
+      // Get current registered count for this session after deletion
+      const registeredCountQuery = await pool.query(
+        `SELECT COUNT(*) as registered_count 
+         FROM enrollments 
+         WHERE session_id = $1 AND status IN ('registered', 'payment_confirmed')`,
+        [enrollment.session_id]
+      );
+      const registeredCount = parseInt(
+        registeredCountQuery.rows[0].registered_count
+      );
+
+      // Get session capacity
+      const sessionQuery = await pool.query(
+        `SELECT capacity FROM sessions WHERE id = $1`,
+        [enrollment.session_id]
+      );
+      const sessionCapacity = sessionQuery.rows[0]?.capacity || 0;
+
+      // Update session status based on new registered count
+      const isFull = registeredCount >= sessionCapacity;
       await pool.query(
-        "UPDATE sessions SET enrolled_count = $1 WHERE id = $2",
-        [newCount, enrollment.session_id]
+        `UPDATE sessions 
+         SET status = CASE WHEN $1 THEN 'fully_booked' ELSE 'registration_open' END,
+             updated_at = NOW()
+         WHERE id = $2`,
+        [isFull, enrollment.session_id]
       );
     }
 

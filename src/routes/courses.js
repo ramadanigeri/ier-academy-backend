@@ -542,10 +542,18 @@ router.get("/:courseId/sessions", async (req, res) => {
     const { published_only = false } = req.query;
 
     let query = `
-      SELECT s.*, c.title as course_title, v.name as venue_name, v.address as venue_address
+      SELECT s.*, c.title as course_title, v.name as venue_name, v.address as venue_address,
+             COALESCE(registered_count.registered_count, 0) as registered_count,
+             (s.capacity - COALESCE(registered_count.registered_count, 0)) as available_spots
       FROM sessions s
       JOIN courses c ON s.course_id = c.id
       LEFT JOIN venues v ON s.venue_id = v.id
+      LEFT JOIN (
+        SELECT session_id, COUNT(*) as registered_count
+        FROM enrollments 
+        WHERE status IN ('registered', 'payment_confirmed')
+        GROUP BY session_id
+      ) registered_count ON s.id::text = registered_count.session_id
       WHERE s.course_id = $1
     `;
     const params = [courseId];
