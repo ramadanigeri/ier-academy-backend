@@ -368,6 +368,12 @@ router.patch("/:id/status", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const { status, courseSlug, sessionId, search } = req.query;
+    console.log("Enrollment GET request params:", {
+      status,
+      courseSlug,
+      sessionId,
+      search,
+    });
 
     let query = `
       SELECT 
@@ -378,7 +384,7 @@ router.get("/", async (req, res) => {
         s.title as session_title
       FROM enrollments e
       LEFT JOIN courses c ON e.course_slug = c.slug
-      LEFT JOIN sessions s ON e.session_id = s.id
+      LEFT JOIN sessions s ON e.session_id = s.id::text
       WHERE 1=1
     `;
     const params = [];
@@ -392,7 +398,7 @@ router.get("/", async (req, res) => {
 
     if (courseSlug) {
       // If courseSlug is actually a course ID, join with courses table to match by ID
-      query += ` AND (e.course_slug = $${paramIndex} OR c.id = $${paramIndex})`;
+      query += ` AND (e.course_slug = $${paramIndex} OR c.id::text = $${paramIndex})`;
       params.push(courseSlug);
       paramIndex++;
     }
@@ -406,16 +412,23 @@ router.get("/", async (req, res) => {
     if (search) {
       query += ` AND (
         e.full_name ILIKE $${paramIndex} OR 
-        e.email ILIKE $${paramIndex} OR 
-        e.phone ILIKE $${paramIndex} OR
-        c.title ILIKE $${paramIndex} OR
-        s.title ILIKE $${paramIndex}
+        e.email ILIKE $${paramIndex + 1} OR 
+        e.phone ILIKE $${paramIndex + 2} OR
+        c.title ILIKE $${paramIndex + 3} OR
+        s.title ILIKE $${paramIndex + 4}
       )`;
       params.push(`%${search}%`);
-      paramIndex++;
+      params.push(`%${search}%`);
+      params.push(`%${search}%`);
+      params.push(`%${search}%`);
+      params.push(`%${search}%`);
+      paramIndex += 5;
     }
 
     query += " ORDER BY e.created_at DESC";
+
+    console.log("Final query:", query);
+    console.log("Query params:", params);
 
     const result = await pool.query(query, params);
 
@@ -426,6 +439,8 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Get enrollments error:", error);
+    console.error("Error details:", error.message);
+    console.error("Error stack:", error.stack);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -504,7 +519,7 @@ router.delete("/:id", async (req, res) => {
     const enrollmentQuery = `
       SELECT e.*, s.id as session_id, s.enrolled_count
       FROM enrollments e
-      LEFT JOIN sessions s ON e.session_id = s.id
+      LEFT JOIN sessions s ON e.session_id = s.id::text
       WHERE e.id = $1
     `;
     const enrollmentResult = await pool.query(enrollmentQuery, [id]);

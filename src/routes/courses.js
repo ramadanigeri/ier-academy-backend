@@ -211,6 +211,7 @@ router.get("/courses", async (req, res) => {
       SELECT COUNT(*) 
       FROM courses c
       LEFT JOIN instructors i ON c.instructor_id = i.id
+      LEFT JOIN categories cat ON c.category_id = cat.id
       WHERE 1=1
     `;
 
