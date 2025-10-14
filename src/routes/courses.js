@@ -164,7 +164,7 @@ router.get("/courses", async (req, res) => {
       instructor_id,
       search,
       page = 1,
-      limit = 10,
+      limit = 9,
     } = req.query;
 
     let query = `
@@ -199,12 +199,23 @@ router.get("/courses", async (req, res) => {
 
     if (search) {
       paramCount++;
-      query += ` AND (c.title ILIKE $${paramCount} OR c.description ILIKE $${paramCount})`;
+      query += ` AND (c.title ILIKE $${paramCount} OR c.description ILIKE $${paramCount} OR i.name ILIKE $${paramCount})`;
       params.push(`%${search}%`);
     }
 
-    // Get total count
-    const countQuery = query.replace(/SELECT.*FROM/, "SELECT COUNT(*) FROM");
+    // Get total count - use a simpler approach
+    const countQuery = `
+      SELECT COUNT(*) 
+      FROM courses c
+      LEFT JOIN instructors i ON c.instructor_id = i.id
+      WHERE 1=1
+      ${published_only === "true" ? "AND c.is_published = true" : ""}
+      ${featured_only === "true" ? "AND c.is_featured = true" : ""}
+      ${category_id ? "AND c.category_id = $1" : ""}
+      ${instructor_id ? "AND c.instructor_id = $2" : ""}
+      ${search ? "AND (c.title ILIKE $3 OR c.description ILIKE $3 OR i.name ILIKE $3)" : ""}
+    `;
+
     const countResult = await pool.query(countQuery, params);
     const totalCount = parseInt(countResult.rows[0].count);
 

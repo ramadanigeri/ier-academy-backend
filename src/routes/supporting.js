@@ -418,6 +418,19 @@ router.delete("/instructors/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting instructor:", error);
+
+    // Check for foreign key constraint violation
+    if (
+      error.code === "23503" &&
+      error.constraint === "courses_instructor_id_fkey"
+    ) {
+      return res.status(409).json({
+        success: false,
+        error:
+          "Cannot delete instructor. This instructor is assigned to one or more courses. Please reassign or remove the courses first.",
+      });
+    }
+
     res.status(500).json({
       success: false,
       error: "Failed to delete instructor",
@@ -1089,5 +1102,3 @@ router.delete("/partners/:id", async (req, res) => {
 });
 
 export default router;
-
-
