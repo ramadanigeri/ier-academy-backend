@@ -6,11 +6,11 @@ const router = express.Router();
 
 // Simple admin credentials - In production, use proper authentication
 const ADMIN_CREDENTIALS = {
-  username: process.env.ADMIN_USERNAME ,
+  username: process.env.ADMIN_USERNAME,
   password: process.env.ADMIN_PASSWORD,
 };
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // Admin login endpoint
 router.post("/login", async (req, res) => {
@@ -20,43 +20,45 @@ router.post("/login", async (req, res) => {
     // Validate input
     if (!username || !password) {
       return res.status(400).json({
-        error: 'Username and password are required'
+        error: "Username and password are required",
       });
     }
 
     // Check credentials
-    if (username !== ADMIN_CREDENTIALS.username || password !== ADMIN_CREDENTIALS.password) {
+    if (
+      username !== ADMIN_CREDENTIALS.username ||
+      password !== ADMIN_CREDENTIALS.password
+    ) {
       return res.status(401).json({
-        error: 'Invalid credentials'
+        error: "Invalid credentials",
       });
     }
 
     // Create JWT token
     const token = jwt.sign(
-      { 
-        username, 
-        role: 'admin',
+      {
+        username,
+        role: "admin",
         iat: Math.floor(Date.now() / 1000),
       },
       JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: "24h" }
     );
 
     // Return success response
     res.json({
       success: true,
-      message: 'Login successful',
+      message: "Login successful",
       token,
       user: {
         username,
-        role: 'admin',
+        role: "admin",
       },
     });
-
   } catch (error) {
-    console.error('Admin login error:', error);
+    console.error("Admin login error:", error);
     res.status(500).json({
-      error: 'Internal server error'
+      error: "Internal server error",
     });
   }
 });
@@ -68,12 +70,12 @@ router.post("/logout", async (req, res) => {
     // For now, we'll just return success
     res.json({
       success: true,
-      message: 'Logged out successfully'
+      message: "Logged out successfully",
     });
   } catch (error) {
-    console.error('Admin logout error:', error);
+    console.error("Admin logout error:", error);
     res.status(500).json({
-      error: 'Internal server error'
+      error: "Internal server error",
     });
   }
 });
@@ -449,13 +451,13 @@ router.put("/enrollment/:id/status", async (req, res) => {
         // Update existing payment
         await pool.query(
           "UPDATE payments SET status = 'verified', verified_by = $1, payment_date = NOW() WHERE enrollment_id = $2",
-          [updatedBy || 'admin', id]
+          [updatedBy || "admin", id]
         );
       } else {
         // Insert new payment record
         await pool.query(
           "INSERT INTO payments (enrollment_id, status, verified_by, payment_date) VALUES ($1, 'verified', $2, NOW())",
-          [id, updatedBy || 'admin']
+          [id, updatedBy || "admin"]
         );
       }
     } else if (status === "enrolled") {
@@ -470,12 +472,11 @@ router.put("/enrollment/:id/status", async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Enrollment status updated successfully',
+      message: "Enrollment status updated successfully",
       enrollmentId: id,
       status: status,
-      updatedBy: updatedBy || 'admin'
+      updatedBy: updatedBy || "admin",
     });
-
   } catch (error) {
     console.error("Status update error:", error);
     res.status(500).json({ error: "Failed to update status" });

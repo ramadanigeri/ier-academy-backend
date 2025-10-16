@@ -452,19 +452,20 @@ router.delete("/instructors/:id", async (req, res) => {
           "UPDATE courses SET instructor_id = $1 WHERE instructor_id = $2",
           [reassignTo, id]
         );
-      } 
+      }
       // If removeAssignments is true, set instructor_id to NULL
       else if (removeAssignments) {
         await pool.query(
           "UPDATE courses SET instructor_id = NULL WHERE instructor_id = $1",
           [id]
         );
-      } 
+      }
       // Otherwise, return conflict with course information
       else {
         return res.status(409).json({
           success: false,
-          error: "Cannot delete instructor. This instructor is assigned to one or more courses.",
+          error:
+            "Cannot delete instructor. This instructor is assigned to one or more courses.",
           affectedCourses: coursesResult.rows,
         });
       }
@@ -480,7 +481,11 @@ router.delete("/instructors/:id", async (req, res) => {
       success: true,
       message: "Instructor deleted successfully",
       affectedCourses: coursesResult.rows,
-      action: reassignTo ? 'reassigned' : removeAssignments ? 'removed_assignments' : 'none'
+      action: reassignTo
+        ? "reassigned"
+        : removeAssignments
+          ? "removed_assignments"
+          : "none",
     });
   } catch (error) {
     console.error("Error deleting instructor:", error);

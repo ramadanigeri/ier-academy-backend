@@ -1,5 +1,5 @@
 // Use frontend's Sanity API to avoid authentication issues
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
 export async function getCourseBySlug(slug) {
   try {

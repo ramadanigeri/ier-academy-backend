@@ -32,8 +32,11 @@ nano .env  # Edit with production values
 
 ```env
 NODE_ENV=production
+PORT=3001
 DATABASE_URL=postgresql://postgres:SECURE_PASSWORD@db:5432/ier_academy
+DATABASE_SSL_ENABLED=false
 JWT_SECRET=<generate-64-character-random-string>
+JWT_EXPIRES_IN=24h
 FRONTEND_URL=https://yourdomain.com
 BACKEND_URL=https://api.yourdomain.com
 CORS_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
@@ -183,7 +186,7 @@ curl http://localhost:3001/health
 
 # Check data counts
 docker-compose exec db psql -U postgres ier_academy -c "
-  SELECT 
+  SELECT
     (SELECT COUNT(*) FROM enrollments) as enrollments,
     (SELECT COUNT(*) FROM events) as events,
     (SELECT COUNT(*) FROM courses) as courses,
@@ -395,19 +398,19 @@ sudo ufw enable
 
 ### Environment Variables
 
-| Variable         | Required | Example                               | Notes                    |
-| ---------------- | -------- | ------------------------------------- | ------------------------ |
-| `NODE_ENV`       | ✅       | `production`                          | Must be "production"     |
-| `PORT`           | ✅       | `3001`                                | API port                 |
-| `DATABASE_URL`   | ✅       | `postgresql://user:pass@host:5432/db` | PostgreSQL connection    |
-| `JWT_SECRET`     | ✅       | `<64-char-random-string>`             | Token signing            |
-| `FRONTEND_URL`   | ✅       | `https://yourdomain.com`              | For CORS                 |
-| `BACKEND_URL`    | ✅       | `https://api.yourdomain.com`          | For file URLs            |
-| `CORS_ORIGINS`   | ✅       | `https://yourdomain.com`              | Comma-separated          |
-| `RESEND_API_KEY` | Optional | `re_xxxxx`                            | Email service            |
-| `JWT_EXPIRES_IN` | Optional | `24h`                                 | Default: 24h             |
-| `ADMIN_USERNAME` | Optional | `admin`                               | For create-admin script  |
-| `ADMIN_PASSWORD` | Optional | `<strong-password>`                   | For create-admin script  |
+| Variable         | Required | Example                               | Notes                   |
+| ---------------- | -------- | ------------------------------------- | ----------------------- |
+| `NODE_ENV`       | ✅       | `production`                          | Must be "production"    |
+| `PORT`           | ✅       | `3001`                                | API port                |
+| `DATABASE_URL`   | ✅       | `postgresql://user:pass@host:5432/db` | PostgreSQL connection   |
+| `JWT_SECRET`     | ✅       | `<64-char-random-string>`             | Token signing           |
+| `FRONTEND_URL`   | ✅       | `https://yourdomain.com`              | For CORS                |
+| `BACKEND_URL`    | ✅       | `https://api.yourdomain.com`          | For file URLs           |
+| `CORS_ORIGINS`   | ✅       | `https://yourdomain.com`              | Comma-separated         |
+| `RESEND_API_KEY` | Optional | `re_xxxxx`                            | Email service           |
+| `JWT_EXPIRES_IN` | Optional | `24h`                                 | Default: 24h            |
+| `ADMIN_USERNAME` | Optional | `admin`                               | For create-admin script |
+| `ADMIN_PASSWORD` | Optional | `<strong-password>`                   | For create-admin script |
 
 ---
 
@@ -606,4 +609,3 @@ After deployment, verify:
 ---
 
 **Your backend is production-ready!** 🚀
-

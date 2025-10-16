@@ -43,7 +43,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 
 // Trust proxy for accurate IP addresses
 app.set("trust proxy", 1);
@@ -135,20 +135,28 @@ app.use("*", (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📖 Health check: http://localhost:${PORT}/health`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
+  if (process.env.NODE_ENV === "development") {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📖 Health check: http://localhost:${PORT}/health`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
+  } else {
+    console.log(`Server started on port ${PORT}`);
+  }
 });
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  console.log("🔄 Received SIGTERM, shutting down gracefully...");
+  if (process.env.NODE_ENV === "development") {
+    console.log("🔄 Received SIGTERM, shutting down gracefully...");
+  }
   await pool.end();
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-  console.log("🔄 Received SIGINT, shutting down gracefully...");
+  if (process.env.NODE_ENV === "development") {
+    console.log("🔄 Received SIGINT, shutting down gracefully...");
+  }
   await pool.end();
   process.exit(0);
 });

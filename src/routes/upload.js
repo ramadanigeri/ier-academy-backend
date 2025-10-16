@@ -63,8 +63,7 @@ router.post("/", upload.single("file"), (req, res) => {
     }
 
     // Return the file URL (absolute path)
-    const backendUrl =
-      process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const backendUrl = process.env.BACKEND_URL;
     const fileUrl = `${backendUrl}/uploads/${req.file.filename}`;
 
     res.json({
