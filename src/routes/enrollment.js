@@ -18,7 +18,6 @@ router.post("/", async (req, res) => {
       studentPhone,
       studentIdCard,
       studentAddress,
-      fatherName,
       amount,
       currency,
       gdprConsent,
@@ -28,6 +27,20 @@ router.post("/", async (req, res) => {
     if (!courseSlug || !sessionId || !studentName || !studentEmail) {
       return res.status(400).json({
         error: "Missing required fields",
+      });
+    }
+
+    // Validate ID card (exactly 10 characters)
+    if (studentIdCard && studentIdCard.length !== 10) {
+      return res.status(400).json({
+        error: "ID card number must be exactly 10 characters",
+      });
+    }
+
+    // Validate phone number format (basic validation for Albanian format)
+    if (studentPhone && !/^\+355\d{9}$/.test(studentPhone)) {
+      return res.status(400).json({
+        error: "Phone number must be in format +355xxxxxxxxx (Albanian format)",
       });
     }
 
@@ -93,8 +106,8 @@ router.post("/", async (req, res) => {
     const result = await pool.query(
       `INSERT INTO enrollments (
         id, course_slug, session_id, full_name, email, phone,
-        id_card, address, father_name, gdpr_consent, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        id_card, address, gdpr_consent, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
       [
         enrollmentId,
@@ -105,7 +118,6 @@ router.post("/", async (req, res) => {
         studentPhone,
         studentIdCard,
         studentAddress,
-        fatherName,
         gdprConsent,
         "enrolled",
       ]
@@ -181,8 +193,8 @@ router.post("/checkout", async (req, res) => {
       `
       INSERT INTO enrollments (
         id, course_slug, session_id, full_name, email, phone, 
-        id_card, address, father_name, gdpr_consent, marketing_consent, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        id_card, address, gdpr_consent, marketing_consent, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `,
       [
@@ -194,7 +206,6 @@ router.post("/checkout", async (req, res) => {
         validatedData.phone,
         validatedData.idCard,
         validatedData.address,
-        validatedData.fatherName,
         validatedData.gdprConsent,
         validatedData.marketingConsent || false,
         "enrolled",
@@ -409,7 +420,7 @@ router.get("/", async (req, res) => {
     let query = `
       SELECT 
         e.id, e.course_slug, e.session_id, e.full_name, e.email, e.phone,
-        e.id_card, e.address, e.father_name, e.gdpr_consent, e.status,
+        e.id_card, e.address, e.gdpr_consent, e.status,
         e.created_at, e.updated_at,
         c.title as course_title,
         s.title as session_title
@@ -480,13 +491,29 @@ router.get("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { id } = req.params;
-    const { full_name, email, phone, id_card, address, father_name } = req.body;
+    const { full_name, email, phone, id_card, address } = req.body;
 
     // Validate required fields
     if (!full_name || !email) {
       return res.status(400).json({
         success: false,
         error: "Full name and email are required",
+      });
+    }
+
+    // Validate ID card (exactly 10 characters)
+    if (id_card && id_card.length !== 10) {
+      return res.status(400).json({
+        success: false,
+        error: "ID card number must be exactly 10 characters",
+      });
+    }
+
+    // Validate phone number format (basic validation for Albanian format)
+    if (phone && !/^\+355\d{9}$/.test(phone)) {
+      return res.status(400).json({
+        success: false,
+        error: "Phone number must be in format +355xxxxxxxxx (Albanian format)",
       });
     }
 
@@ -510,9 +537,8 @@ router.put("/:id", async (req, res) => {
         phone = $3,
         id_card = $4,
         address = $5,
-        father_name = $6,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $6
       RETURNING *
     `;
 
@@ -522,7 +548,6 @@ router.put("/:id", async (req, res) => {
       phone || null,
       id_card || null,
       address || null,
-      father_name || null,
       id,
     ]);
 

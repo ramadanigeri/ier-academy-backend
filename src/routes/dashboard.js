@@ -246,7 +246,9 @@ router.get("/stats", async (req, res) => {
         (SELECT COUNT(*) FROM events WHERE is_published = true) as total_events,
         (SELECT COUNT(*) FROM event_registrations) as total_registrations,
         (SELECT COUNT(DISTINCT event_id) FROM event_registrations) as events_with_registrations,
-        (SELECT AVG(current_registrations) FROM events WHERE is_published = true) as avg_registrations_per_event
+        (SELECT AVG(current_registrations) FROM events WHERE is_published = true) as avg_registrations_per_event,
+        (SELECT COUNT(*) FROM courses WHERE is_published = true) as total_courses,
+        (SELECT COUNT(*) FROM enrollments) as total_course_registrations
     `;
 
     const result = await pool.query(statsQuery);

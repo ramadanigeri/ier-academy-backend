@@ -17,7 +17,25 @@ import supportingRoutes from "./routes/supporting.js";
 import uploadRoutes from "./routes/upload.js";
 import venuesRoutes from "./routes/venues.js";
 import eventSectionsRoutes from "./routes/eventSections.js";
+import authRoutes from "./routes/auth.js";
 import pool from "./database/connection.js";
+
+// Import security middleware
+import {
+  securityHeaders,
+  corsOptions,
+  generalLimiter,
+  authLimiter,
+  publicApiLimiter,
+  sanitizeData,
+  validateInput,
+  securityLogger,
+  mongoSanitize,
+  hpp,
+} from "./middleware/security.js";
+
+// Import authentication middleware
+import { authenticateToken, authRateLimit } from "./middleware/auth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,21 +45,27 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
-app.use(helmet());
+// Trust proxy for accurate IP addresses
+app.set("trust proxy", 1);
 
-// CORS configuration
-const corsOptions = {
-  origin: process.env.CORS_ORIGINS?.split(",") || ["http://localhost:3000"],
-  credentials: true,
-  optionsSuccessStatus: 200,
-};
+// Security middleware (order matters!)
+app.use(securityHeaders);
 app.use(cors(corsOptions));
+app.use(securityLogger);
+
+// Rate limiting
+app.use(generalLimiter);
 
 // Body parsing middleware (except for webhooks)
 app.use("/api/webhooks", express.raw({ type: "application/json" }));
 app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Data sanitization and validation
+app.use(mongoSanitize());
+app.use(hpp());
+app.use(sanitizeData);
+app.use(validateInput);
 
 // Serve static files from uploads directory
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
@@ -65,22 +89,25 @@ app.get("/health", async (req, res) => {
   }
 });
 
-// API routes
-app.use("/api/enrollment", enrollmentRoutes);
-app.use("/api/contact", contactRoutes);
-app.use("/api/webhooks", webhookRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/events", eventsRoutes);
-app.use("/api/dashboard", dashboardRoutes);
+// Public API routes (no authentication required, but rate limited)
+app.use("/api/contact", publicApiLimiter, contactRoutes);
+app.use("/api/webhooks", publicApiLimiter, webhookRoutes);
+app.use("/api/events", publicApiLimiter, eventsRoutes);
+app.use("/api/courses", publicApiLimiter, coursesRoutes);
+app.use("/api/content", publicApiLimiter, contentRoutes);
+app.use("/api/supporting", publicApiLimiter, supportingRoutes);
+app.use("/api/venues", publicApiLimiter, venuesRoutes);
+app.use("/api/event-sections", publicApiLimiter, eventSectionsRoutes);
+app.use("/api/enrollment", publicApiLimiter, enrollmentRoutes);
 
-// CMS API routes
-app.use("/api/cms", cmsRoutes);
-app.use("/api/courses", coursesRoutes);
-app.use("/api/content", contentRoutes);
-app.use("/api/supporting", supportingRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/venues", venuesRoutes);
-app.use("/api/event-sections", eventSectionsRoutes);
+// Authentication routes (with strict rate limiting)
+app.use("/api/auth", authLimiter, authRoutes);
+
+// Protected API routes (authentication required)
+app.use("/api/admin", authRateLimit, authenticateToken, adminRoutes);
+app.use("/api/dashboard", authRateLimit, authenticateToken, dashboardRoutes);
+app.use("/api/cms", authRateLimit, authenticateToken, cmsRoutes);
+app.use("/api/upload", authRateLimit, authenticateToken, uploadRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
