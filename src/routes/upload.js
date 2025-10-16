@@ -3,6 +3,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { authenticateToken } from "../middleware/auth.js";
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -17,7 +18,18 @@ if (!fs.existsSync(uploadsDir)) {
 // Configure multer storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadsDir);
+    // Get folder from query parameter or default to 'general'
+    const folder = req.query.folder || "general";
+
+    // Create folder-specific upload directory
+    const folderDir = path.join(uploadsDir, folder);
+
+    // Ensure folder directory exists
+    if (!fs.existsSync(folderDir)) {
+      fs.mkdirSync(folderDir, { recursive: true });
+    }
+
+    cb(null, folderDir);
   },
   filename: function (req, file, cb) {
     // Create unique filename with timestamp
@@ -62,9 +74,12 @@ router.post("/", upload.single("file"), (req, res) => {
       });
     }
 
-    // Return the file URL (absolute path)
+    // Get folder from query parameter or default to 'general'
+    const folder = req.query.folder || req.body.folder || "general";
+
+    // Return the file URL (absolute path) with folder
     const backendUrl = process.env.BACKEND_URL;
-    const fileUrl = `${backendUrl}/uploads/${req.file.filename}`;
+    const fileUrl = `${backendUrl}/uploads/${folder}/${req.file.filename}`;
 
     res.json({
       success: true,
@@ -73,6 +88,7 @@ router.post("/", upload.single("file"), (req, res) => {
       originalname: req.file.originalname,
       mimetype: req.file.mimetype,
       size: req.file.size,
+      folder: folder,
     });
   } catch (error) {
     console.error("Upload error:", error);
@@ -93,13 +109,18 @@ router.post("/multiple", upload.array("files", 10), (req, res) => {
       });
     }
 
-    // Return array of file URLs
+    // Get folder from query parameter or default to 'general'
+    const folder = req.query.folder || req.body.folder || "general";
+    const backendUrl = process.env.BACKEND_URL;
+
+    // Return array of file URLs with folder
     const files = req.files.map((file) => ({
       filename: file.filename,
       originalname: file.originalname,
       mimetype: file.mimetype,
       size: file.size,
-      url: `/uploads/${file.filename}`,
+      url: `${backendUrl}/uploads/${folder}/${file.filename}`,
+      folder: folder,
     }));
 
     res.json({
@@ -118,10 +139,10 @@ router.post("/multiple", upload.array("files", 10), (req, res) => {
 });
 
 // Delete file endpoint
-router.delete("/:filename", (req, res) => {
+router.delete("/:folder/:filename", authenticateToken, (req, res) => {
   try {
-    const { filename } = req.params;
-    const filePath = path.join(uploadsDir, filename);
+    const { folder, filename } = req.params;
+    const filePath = path.join(uploadsDir, folder, filename);
 
     // Check if file exists
     if (!fs.existsSync(filePath)) {
