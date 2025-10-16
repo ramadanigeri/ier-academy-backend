@@ -355,8 +355,6 @@ INSERT INTO settings (key, value, type, description) VALUES
 ('social_facebook', '', 'text', 'Facebook URL'),
 ('social_linkedin', '', 'text', 'LinkedIn URL'),
 ('social_twitter', '', 'text', 'Twitter URL'),
-('hero_title', 'Welcome to IER Academy', 'text', 'Homepage hero title'),
-('hero_subtitle', 'Professional Training & Certification Programs', 'text', 'Homepage hero subtitle')
 ON CONFLICT (key) DO NOTHING;
 
 -- =============================================
