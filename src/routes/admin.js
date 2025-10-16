@@ -465,7 +465,6 @@ router.put("/enrollment/:id/status", async (req, res) => {
         [id]
       );
 
-      // TODO: Implement course capacity management
       // Reduce available spots in course by 1 when student is registered
     }
 
@@ -527,7 +526,6 @@ router.get("/enrollment/:id/status", async (req, res) => {
         [id]
       );
 
-      // TODO: Implement course capacity management
       // Reduce available spots in course by 1 when student is registered
     }
 

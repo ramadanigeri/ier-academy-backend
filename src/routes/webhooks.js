@@ -13,7 +13,6 @@ router.get("/health", (req, res) => {
 
 // Placeholder for future webhook integrations
 router.post("/generic", (req, res) => {
-  console.log("Generic webhook received:", req.body);
   res.json({ received: true });
 });
 

@@ -269,7 +269,6 @@ router.post("/checkout", async (req, res) => {
       ]
     );
 
-    // TODO: Implement email confirmation when email service is configured
     // await sendEnrollmentConfirmationEmail({
     //   enrollmentId: enrollment.id,
     //   fullName: validatedData.fullName,
@@ -448,12 +447,6 @@ router.patch("/:id/status", async (req, res) => {
 router.get("/", async (req, res) => {
   try {
     const { status, courseSlug, sessionId, search } = req.query;
-    console.log("Enrollment GET request params:", {
-      status,
-      courseSlug,
-      sessionId,
-      search,
-    });
 
     let query = `
       SELECT 
@@ -507,9 +500,6 @@ router.get("/", async (req, res) => {
 
     query += " ORDER BY e.created_at DESC";
 
-    console.log("Final query:", query);
-    console.log("Query params:", params);
-
     const result = await pool.query(query, params);
 
     res.json({
@@ -519,8 +509,6 @@ router.get("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Get enrollments error:", error);
-    console.error("Error details:", error.message);
-    console.error("Error stack:", error.stack);
     res.status(500).json({ error: "Internal server error" });
   }
 });

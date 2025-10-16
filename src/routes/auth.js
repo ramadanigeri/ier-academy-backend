@@ -143,7 +143,6 @@ router.post("/login", loginLimiter, loginValidation, async (req, res) => {
     const token = generateToken(user.id);
 
     // Log successful login
-    console.log(`✅ Successful login for user: ${username} from IP: ${req.ip}`);
 
     // Return token and user info (excluding password)
     res.json({
@@ -189,7 +188,6 @@ router.post("/logout", authenticateToken, async (req, res) => {
     // In a more sophisticated system, you might want to blacklist the token
     // For now, we'll just return success since JWT tokens are stateless
 
-    console.log(`✅ User ${req.user.username} logged out from IP: ${req.ip}`);
 
     res.json({
       success: true,
@@ -286,10 +284,6 @@ router.post(
       await pool.query(
         "UPDATE admin_users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
         [newPasswordHash, req.user.id]
-      );
-
-      console.log(
-        `✅ Password changed for user: ${req.user.username} from IP: ${req.ip}`
       );
 
       res.json({

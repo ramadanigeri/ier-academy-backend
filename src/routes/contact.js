@@ -40,7 +40,6 @@ router.post("/submit", async (req, res) => {
 
     const inquiry = result.rows[0];
 
-    // TODO: In the future, add mail provider integration here
     // Example:
     // await sendContactEmail({
     //   to: 'info@ieracademy.com',
@@ -68,12 +67,6 @@ router.post("/submit", async (req, res) => {
 // Get all contact inquiries (Admin only - for future CMS)
 router.get("/inquiries", async (req, res) => {
   try {
-    // TODO: Add authentication check here
-    // const token = req.headers.authorization?.replace('Bearer ', '');
-    // if (!token || !verifyAdminToken(token)) {
-    //   return res.status(401).json({ success: false, error: 'Unauthorized' });
-    // }
-
     const { status, limit = 50, offset = 0 } = req.query;
 
     let query = `
@@ -127,7 +120,6 @@ router.get("/inquiries", async (req, res) => {
 // Update contact inquiry status (Admin only - for future CMS)
 router.put("/inquiries/:id", async (req, res) => {
   try {
-    // TODO: Add authentication check here
     const { id } = req.params;
     const { status, priority, assigned_to, admin_notes } = req.body;
 
@@ -165,7 +157,6 @@ router.put("/inquiries/:id", async (req, res) => {
 // Get contact inquiry by ID (Admin only - for future CMS)
 router.get("/inquiries/:id", async (req, res) => {
   try {
-    // TODO: Add authentication check here
     const { id } = req.params;
 
     const result = await pool.query(
