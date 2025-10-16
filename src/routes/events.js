@@ -8,6 +8,31 @@ import {
 
 const router = express.Router();
 
+// Check if user is already registered for an event
+router.get("/check/:eventId/:email", async (req, res) => {
+  try {
+    const { eventId, email } = req.params;
+
+    const result = await pool.query(
+      `SELECT id FROM event_registrations 
+       WHERE event_id = $1 AND email = $2`,
+      [eventId, email]
+    );
+
+    res.json({
+      success: true,
+      isRegistered: result.rows.length > 0,
+      registration: result.rows.length > 0 ? result.rows[0] : null,
+    });
+  } catch (error) {
+    console.error("Error checking event registration:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to check registration status",
+    });
+  }
+});
+
 // ========== CMS ROUTES (Admin) ==========
 
 // Get all events (CMS - returns all events including unpublished)
@@ -222,9 +247,9 @@ router.post("/:eventId/register", async (req, res) => {
     try {
       await client.query("BEGIN");
 
-      // Check event capacity
+      // Check event capacity using actual registration count
       const eventQuery = await client.query(
-        "SELECT capacity, current_registrations, title FROM events WHERE id = $1",
+        "SELECT capacity, title FROM events WHERE id = $1",
         [eventId]
       );
 
@@ -234,7 +259,16 @@ router.post("/:eventId/register", async (req, res) => {
       }
 
       const event = eventQuery.rows[0];
-      const availableSeats = event.capacity - event.current_registrations;
+
+      // Get actual registration count
+      const registrationCountQuery = await client.query(
+        "SELECT COUNT(*) as actual_count FROM event_registrations WHERE event_id = $1",
+        [eventId]
+      );
+      const actualRegistrations = parseInt(
+        registrationCountQuery.rows[0].actual_count
+      );
+      const availableSeats = event.capacity - actualRegistrations;
 
       if (availableSeats <= 0) {
         await client.query("ROLLBACK");
@@ -405,8 +439,16 @@ router.post("/:eventId/register", async (req, res) => {
       return res.status(400).json({ message: "Event registration is closed" });
     }
 
-    // Check capacity
-    if (event.current_registrations >= event.capacity) {
+    // Check capacity using actual registration count
+    const registrationCountQuery = await pool.query(
+      "SELECT COUNT(*) as actual_count FROM event_registrations WHERE event_id = $1",
+      [eventId]
+    );
+    const actualRegistrations = parseInt(
+      registrationCountQuery.rows[0].actual_count
+    );
+
+    if (actualRegistrations >= event.capacity) {
       return res.status(400).json({ message: "Event is fully booked" });
     }
 
@@ -549,8 +591,16 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // Check capacity
-    if (event.current_registrations >= event.capacity) {
+    // Check capacity using actual registration count
+    const registrationCountQuery = await pool.query(
+      "SELECT COUNT(*) as actual_count FROM event_registrations WHERE event_id = $1",
+      [eventId]
+    );
+    const actualRegistrations = parseInt(
+      registrationCountQuery.rows[0].actual_count
+    );
+
+    if (actualRegistrations >= event.capacity) {
       return res.status(400).json({
         success: false,
         error: "Event is fully booked",

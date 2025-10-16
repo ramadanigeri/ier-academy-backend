@@ -7,6 +7,31 @@ import { getCourseBySlug } from "../services/sanity.js";
 
 const router = express.Router();
 
+// Check if user is already enrolled in a session
+router.get("/check/:sessionId/:email", async (req, res) => {
+  try {
+    const { sessionId, email } = req.params;
+
+    const result = await pool.query(
+      `SELECT id, status FROM enrollments 
+       WHERE session_id = $1 AND email = $2`,
+      [sessionId, email]
+    );
+
+    res.json({
+      success: true,
+      isEnrolled: result.rows.length > 0,
+      enrollment: result.rows.length > 0 ? result.rows[0] : null,
+    });
+  } catch (error) {
+    console.error("Error checking enrollment:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to check enrollment status",
+    });
+  }
+});
+
 // Create enrollment from frontend CMS (new endpoint)
 router.post("/", async (req, res) => {
   try {
@@ -73,6 +98,19 @@ router.post("/", async (req, res) => {
     if (session.status !== "registration_open") {
       return res.status(400).json({
         error: `Session is ${session.status === "coming_soon" ? "not yet open" : "fully booked"}`,
+      });
+    }
+
+    // Check if user is already enrolled in this session
+    const existingEnrollment = await pool.query(
+      `SELECT id FROM enrollments 
+       WHERE session_id = $1 AND email = $2`,
+      [parsedSessionId, studentEmail]
+    );
+
+    if (existingEnrollment.rows.length > 0) {
+      return res.status(400).json({
+        error: "You are already enrolled in this session",
       });
     }
 
