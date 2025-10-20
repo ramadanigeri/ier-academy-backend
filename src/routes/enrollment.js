@@ -446,7 +446,7 @@ router.patch("/:id/status", async (req, res) => {
 // Get all enrollments (admin only - with filters)
 router.get("/", async (req, res) => {
   try {
-    const { status, courseSlug, sessionId, search } = req.query;
+    const { status, courseSlug, sessionId, search, page = 1, limit = 50 } = req.query;
 
     let query = `
       SELECT 
@@ -500,12 +500,72 @@ router.get("/", async (req, res) => {
 
     query += " ORDER BY e.created_at DESC";
 
+    // Add pagination
+    const offset = (page - 1) * limit;
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(limit, offset);
+
     const result = await pool.query(query, params);
+
+    // Get total count for pagination
+    let countQuery = `
+      SELECT COUNT(*) as total
+      FROM enrollments e
+      LEFT JOIN courses c ON e.course_slug = c.slug
+      LEFT JOIN sessions s ON e.session_id = s.id::text
+      WHERE 1=1
+    `;
+
+    const countParams = [];
+    let countParamIndex = 1;
+
+    if (status) {
+      countQuery += ` AND e.status = $${countParamIndex}`;
+      countParams.push(status);
+      countParamIndex++;
+    }
+
+    if (courseSlug) {
+      countQuery += ` AND (e.course_slug = $${countParamIndex} OR c.id::text = $${countParamIndex})`;
+      countParams.push(courseSlug);
+      countParamIndex++;
+    }
+
+    if (sessionId) {
+      countQuery += ` AND e.session_id = $${countParamIndex}`;
+      countParams.push(sessionId);
+      countParamIndex++;
+    }
+
+    if (search) {
+      countQuery += ` AND (
+        e.full_name ILIKE $${countParamIndex} OR 
+        e.email ILIKE $${countParamIndex + 1} OR 
+        e.phone ILIKE $${countParamIndex + 2} OR
+        c.title ILIKE $${countParamIndex + 3} OR
+        s.title ILIKE $${countParamIndex + 4}
+      )`;
+      countParams.push(`%${search}%`);
+      countParams.push(`%${search}%`);
+      countParams.push(`%${search}%`);
+      countParams.push(`%${search}%`);
+      countParams.push(`%${search}%`);
+      countParamIndex += 5;
+    }
+
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
 
     res.json({
       success: true,
       enrollments: result.rows,
       count: result.rows.length,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
     console.error("Get enrollments error:", error);
