@@ -53,9 +53,11 @@ router.get("/all", async (req, res) => {
 
     // Only filter by published status if specifically requested
     if (status === "upcoming") {
-      query += ` WHERE event_date > NOW()`;
+      // Event is upcoming if end_date hasn't passed (or start_date if no end_date)
+      query += ` WHERE COALESCE(event_end_date, event_date) >= CURRENT_DATE`;
     } else if (status === "past") {
-      query += ` WHERE event_date <= NOW()`;
+      // Event is past if end_date has passed (or start_date if no end_date)
+      query += ` WHERE COALESCE(event_end_date, event_date) < CURRENT_DATE`;
     }
 
     query += ` ORDER BY sort_order ASC, event_date ASC LIMIT $${++paramCount} OFFSET $${++paramCount}`;
@@ -384,9 +386,11 @@ router.get("/", async (req, res) => {
     let paramCount = 0;
 
     if (status === "upcoming") {
-      query += ` AND e.event_date > NOW()`;
+      // Event is upcoming if end_date hasn't passed (or start_date if no end_date)
+      query += ` AND COALESCE(e.event_end_date, e.event_date) >= CURRENT_DATE`;
     } else if (status === "past") {
-      query += ` AND e.event_date <= NOW()`;
+      // Event is past if end_date has passed (or start_date if no end_date)
+      query += ` AND COALESCE(e.event_end_date, e.event_date) < CURRENT_DATE`;
     }
 
     query += ` GROUP BY e.id, e.title, e.slug, e.description, e.event_date, e.event_end_date,
