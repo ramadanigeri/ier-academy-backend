@@ -350,7 +350,6 @@ router.post("/courses", async (req, res) => {
       short_description,
       price,
       currency = "EUR",
-      duration,
       level,
       instructor_id,
       category_id,
@@ -373,8 +372,8 @@ router.post("/courses", async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO courses 
-       (slug, title, description, short_description, price, currency, duration, level, instructor_id, category_id, thumbnail_url, gallery_urls, is_published, is_featured, is_eligible_for_installments, is_multi_module, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+       (slug, title, description, short_description, price, currency, level, instructor_id, category_id, thumbnail_url, gallery_urls, is_published, is_featured, is_eligible_for_installments, is_multi_module, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         slug,
@@ -383,7 +382,6 @@ router.post("/courses", async (req, res) => {
         short_description,
         price,
         currency,
-        duration,
         level,
         instructor_id,
         category_id,
@@ -430,7 +428,6 @@ router.put("/courses/:id", async (req, res) => {
       short_description,
       price,
       currency,
-      duration,
       level,
       instructor_id,
       category_id,
@@ -446,9 +443,9 @@ router.put("/courses/:id", async (req, res) => {
     const result = await pool.query(
       `UPDATE courses 
        SET slug = $1, title = $2, description = $3, short_description = $4, price = $5, currency = $6,
-           duration = $7, level = $8, instructor_id = $9, category_id = $10, thumbnail_url = $11, gallery_urls = $12,
-           is_published = $13, is_featured = $14, is_eligible_for_installments = $15, is_multi_module = $16, sort_order = $17, updated_at = NOW()
-       WHERE id = $18
+           level = $7, instructor_id = $8, category_id = $9, thumbnail_url = $10, gallery_urls = $11,
+           is_published = $12, is_featured = $13, is_eligible_for_installments = $14, is_multi_module = $15, sort_order = $16, updated_at = NOW()
+       WHERE id = $17
        RETURNING *`,
       [
         slug,
@@ -457,7 +454,6 @@ router.put("/courses/:id", async (req, res) => {
         short_description,
         price,
         currency,
-        duration,
         level,
         instructor_id,
         category_id,
@@ -620,9 +616,11 @@ router.post("/sessions", async (req, res) => {
     const {
       course_id,
       title,
-      description,
       start_date,
       end_date,
+      start_time = "09:00",
+      end_time = "17:00",
+      weeks,
       mode,
       venue_id,
       capacity = 0,
@@ -640,6 +638,30 @@ router.post("/sessions", async (req, res) => {
       });
     }
 
+    // Capacity validation
+    if (capacity < enrolled_count) {
+      return res.status(400).json({
+        success: false,
+        error: `Capacity cannot be less than enrolled participants (${enrolled_count})`,
+      });
+    }
+
+    // Calculate weeks if not provided but dates are available
+    let calculatedWeeks = weeks;
+    if (!weeks && start_date && end_date) {
+      const start = new Date(start_date);
+      const end = new Date(end_date);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      calculatedWeeks = Math.round(diffDays / 7);
+    }
+
+    // Auto-set status to fully_booked if capacity equals enrolled count
+    let finalStatus = status;
+    if (capacity === enrolled_count && capacity > 0) {
+      finalStatus = "fully_booked";
+    }
+
     // Convert empty strings to null for date fields
     const startDate =
       start_date && start_date.trim() !== "" ? start_date : null;
@@ -649,21 +671,23 @@ router.post("/sessions", async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO sessions 
-       (course_id, title, description, start_date, end_date, mode, venue_id, capacity, enrolled_count, price, status, is_published)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       (course_id, title, start_date, end_date, start_time, end_time, weeks, mode, venue_id, capacity, enrolled_count, price, status, is_published)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         course_id,
         title,
-        description,
         startDate,
         endDate,
+        start_time,
+        end_time,
+        calculatedWeeks || 1,
         mode,
         venueId,
         capacity,
         enrolled_count,
         priceValue,
-        status,
+        finalStatus,
         is_published,
       ]
     );
@@ -688,9 +712,11 @@ router.put("/sessions/:id", async (req, res) => {
     const { id } = req.params;
     const {
       title,
-      description,
       start_date,
       end_date,
+      start_time,
+      end_time,
+      weeks,
       mode,
       venue_id,
       capacity,
@@ -699,6 +725,50 @@ router.put("/sessions/:id", async (req, res) => {
       status,
       is_published,
     } = req.body;
+
+    // Get current session data for validation
+    const currentSession = await pool.query(
+      "SELECT capacity, enrolled_count FROM sessions WHERE id = $1",
+      [id]
+    );
+
+    if (currentSession.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: "Session not found",
+      });
+    }
+
+    const currentCapacity =
+      capacity !== undefined ? capacity : currentSession.rows[0].capacity;
+    const currentEnrolledCount =
+      enrolled_count !== undefined
+        ? enrolled_count
+        : currentSession.rows[0].enrolled_count;
+
+    // Capacity validation
+    if (currentCapacity < currentEnrolledCount) {
+      return res.status(400).json({
+        success: false,
+        error: `Capacity cannot be less than enrolled participants (${currentEnrolledCount})`,
+      });
+    }
+
+    // Calculate weeks if not provided but dates are available
+    let calculatedWeeks = weeks;
+    if (!weeks && start_date && end_date) {
+      const start = new Date(start_date);
+      const end = new Date(end_date);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      calculatedWeeks = Math.round(diffDays / 7);
+    }
+
+    // Auto-set status to fully_booked if capacity equals enrolled count
+    let finalStatus = status;
+    if (currentCapacity === currentEnrolledCount && currentCapacity > 0) {
+      finalStatus = "fully_booked";
+    }
 
     // Convert empty strings to null for date fields
     const startDate =
@@ -709,21 +779,23 @@ router.put("/sessions/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE sessions 
-       SET title = $1, description = $2, start_date = $3, end_date = $4, mode = $5,
-           venue_id = $6, capacity = $7, enrolled_count = $8, price = $9, status = $10, is_published = $11, updated_at = NOW()
-       WHERE id = $12
+       SET title = $1, start_date = $2, end_date = $3, start_time = $4, end_time = $5, weeks = $6, mode = $7,
+           venue_id = $8, capacity = $9, enrolled_count = $10, price = $11, status = $12, is_published = $13, updated_at = NOW()
+       WHERE id = $14
        RETURNING *`,
       [
         title,
-        description,
         startDate,
         endDate,
+        start_time,
+        end_time,
+        calculatedWeeks,
         mode,
         venueId,
-        capacity,
-        enrolled_count,
+        currentCapacity,
+        currentEnrolledCount,
         priceValue,
-        status,
+        finalStatus,
         is_published,
         id,
       ]
