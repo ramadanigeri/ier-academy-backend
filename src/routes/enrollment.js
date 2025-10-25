@@ -446,7 +446,18 @@ router.patch("/:id/status", async (req, res) => {
 // Get all enrollments (admin only - with filters)
 router.get("/", async (req, res) => {
   try {
-    const { status, courseSlug, sessionId, search, page = 1, limit = 50 } = req.query;
+    const {
+      status,
+      courseSlug,
+      sessionId,
+      search,
+      page = 1,
+      limit = 50,
+    } = req.query;
+
+    // Validate and sanitize pagination parameters
+    const safePage = Math.max(1, parseInt(page) || 1);
+    const safeLimit = Math.min(500, Math.max(1, parseInt(limit) || 50));
 
     let query = `
       SELECT 
@@ -501,9 +512,9 @@ router.get("/", async (req, res) => {
     query += " ORDER BY e.created_at DESC";
 
     // Add pagination
-    const offset = (page - 1) * limit;
+    const offset = (safePage - 1) * safeLimit;
     query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limit, offset);
+    params.push(safeLimit, offset);
 
     const result = await pool.query(query, params);
 
@@ -561,10 +572,10 @@ router.get("/", async (req, res) => {
       enrollments: result.rows,
       count: result.rows.length,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: safePage,
+        limit: safeLimit,
         total,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / safeLimit),
       },
     });
   } catch (error) {
@@ -618,11 +629,11 @@ router.put("/:id", async (req, res) => {
     const updateQuery = `
       UPDATE enrollments 
       SET 
-        full_name = $1,
-        email = $2,
-        phone = $3,
-        id_card = $4,
-        address = $5,
+        full_name = COALESCE($1, full_name),
+        email = COALESCE($2, email),
+        phone = COALESCE($3, phone),
+        id_card = COALESCE($4, id_card),
+        address = COALESCE($5, address),
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $6
       RETURNING *

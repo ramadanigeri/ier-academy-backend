@@ -171,9 +171,17 @@ router.put("/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE venues 
-       SET name = $1, slug = $2, description = $3, capacity = $4, location = $5,
-           amenities = $6, image_url = $7, gallery_urls = $8, is_published = $9,
-           sort_order = $10, updated_at = NOW()
+       SET name = COALESCE($1, name), 
+           slug = COALESCE($2, slug), 
+           description = COALESCE($3, description), 
+           capacity = COALESCE($4, capacity), 
+           location = COALESCE($5, location),
+           amenities = COALESCE($6, amenities), 
+           image_url = COALESCE($7, image_url), 
+           gallery_urls = COALESCE($8, gallery_urls), 
+           is_published = COALESCE($9, is_published),
+           sort_order = COALESCE($10, sort_order), 
+           updated_at = NOW()
        WHERE id = $11
        RETURNING *`,
       [

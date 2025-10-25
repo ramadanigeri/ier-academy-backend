@@ -13,10 +13,9 @@ const pool = new Pool({
       : false,
 });
 
-// Database error handling
-pool.on("error", (err) => {
-  console.error("Database connection error:", err);
-  process.exit(-1);
+// Database error handling - log but don't crash the server
+pool.on("error", (err, client) => {
+  console.error("Unexpected database pool error:", err);
 });
 
 export default pool;

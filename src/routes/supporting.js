@@ -144,8 +144,16 @@ router.put("/staff/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE staff 
-       SET name = $1, position = $2, bio = $3, photo_url = $4, email = $5, phone = $6,
-           department = $7, is_published = $8, sort_order = $9, updated_at = NOW()
+       SET name = COALESCE($1, name), 
+           position = COALESCE($2, position), 
+           bio = COALESCE($3, bio), 
+           photo_url = COALESCE($4, photo_url), 
+           email = COALESCE($5, email), 
+           phone = COALESCE($6, phone),
+           department = COALESCE($7, department), 
+           is_published = COALESCE($8, is_published), 
+           sort_order = COALESCE($9, sort_order), 
+           updated_at = NOW()
        WHERE id = $10
        RETURNING *`,
       [
@@ -354,8 +362,18 @@ router.put("/instructors/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE instructors 
-       SET name = $1, title = $2, bio = $3, photo_url = $4, email = $5, phone = $6,
-           linkedin_url = $7, twitter_url = $8, specialties = $9, is_published = $10, sort_order = $11, updated_at = NOW()
+       SET name = COALESCE($1, name), 
+           title = COALESCE($2, title), 
+           bio = COALESCE($3, bio), 
+           photo_url = COALESCE($4, photo_url), 
+           email = COALESCE($5, email), 
+           phone = COALESCE($6, phone),
+           linkedin_url = COALESCE($7, linkedin_url), 
+           twitter_url = COALESCE($8, twitter_url), 
+           specialties = COALESCE($9, specialties), 
+           is_published = COALESCE($10, is_published), 
+           sort_order = COALESCE($11, sort_order), 
+           updated_at = NOW()
        WHERE id = $12
        RETURNING *`,
       [
@@ -639,8 +657,15 @@ router.put("/venues/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE venues 
-       SET name = $1, address = $2, city = $3, country = $4, capacity = $5,
-           facilities = $6, photos_urls = $7, is_published = $8, updated_at = NOW()
+       SET name = COALESCE($1, name), 
+           address = COALESCE($2, address), 
+           city = COALESCE($3, city), 
+           country = COALESCE($4, country), 
+           capacity = COALESCE($5, capacity),
+           facilities = COALESCE($6, facilities), 
+           photos_urls = COALESCE($7, photos_urls), 
+           is_published = COALESCE($8, is_published), 
+           updated_at = NOW()
        WHERE id = $9
        RETURNING *`,
       [
@@ -797,7 +822,12 @@ router.put("/faqs/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE faqs 
-       SET question = $1, answer = $2, category = $3, is_published = $4, sort_order = $5, updated_at = NOW()
+       SET question = COALESCE($1, question), 
+           answer = COALESCE($2, answer), 
+           category = COALESCE($3, category), 
+           is_published = COALESCE($4, is_published), 
+           sort_order = COALESCE($5, sort_order), 
+           updated_at = NOW()
        WHERE id = $6
        RETURNING *`,
       [question, answer, category, is_published, sort_order, id]
@@ -944,7 +974,13 @@ router.put("/partners/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE partners 
-       SET name = $1, logo_url = $2, website_url = $3, description = $4, is_published = $5, sort_order = $6, updated_at = NOW()
+       SET name = COALESCE($1, name), 
+           logo_url = COALESCE($2, logo_url), 
+           website_url = COALESCE($3, website_url), 
+           description = COALESCE($4, description), 
+           is_published = COALESCE($5, is_published), 
+           sort_order = COALESCE($6, sort_order), 
+           updated_at = NOW()
        WHERE id = $7
        RETURNING *`,
       [name, logo_url, website_url, description, is_published, sort_order, id]

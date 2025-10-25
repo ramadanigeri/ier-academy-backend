@@ -129,8 +129,13 @@ router.put("/pages/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE pages 
-       SET slug = $1, title = $2, meta_title = $3, meta_description = $4, 
-           is_published = $5, sort_order = $6, updated_at = NOW()
+       SET slug = COALESCE($1, slug), 
+           title = COALESCE($2, title), 
+           meta_title = COALESCE($3, meta_title), 
+           meta_description = COALESCE($4, meta_description), 
+           is_published = COALESCE($5, is_published), 
+           sort_order = COALESCE($6, sort_order), 
+           updated_at = NOW()
        WHERE id = $7
        RETURNING *`,
       [slug, title, meta_title, meta_description, is_published, sort_order, id]
@@ -343,8 +348,16 @@ router.put("/sections/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE page_sections 
-       SET section_type = $1, title = $2, subtitle = $3, content = $4, data = $5,
-           background_color = $6, text_color = $7, sort_order = $8, is_published = $9, updated_at = NOW()
+       SET section_type = COALESCE($1, section_type), 
+           title = COALESCE($2, title), 
+           subtitle = COALESCE($3, subtitle), 
+           content = COALESCE($4, content), 
+           data = COALESCE($5, data),
+           background_color = COALESCE($6, background_color), 
+           text_color = COALESCE($7, text_color), 
+           sort_order = COALESCE($8, sort_order), 
+           is_published = COALESCE($9, is_published), 
+           updated_at = NOW()
        WHERE id = $10
        RETURNING *`,
       [
@@ -472,7 +485,10 @@ router.put("/settings/:key", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE settings 
-       SET value = $1, type = $2, description = $3, updated_at = NOW()
+       SET value = COALESCE($1, value), 
+           type = COALESCE($2, type), 
+           description = COALESCE($3, description), 
+           updated_at = NOW()
        WHERE key = $4
        RETURNING *`,
       [value, type, description, key]

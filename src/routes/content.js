@@ -19,6 +19,10 @@ router.get("/events", async (req, res) => {
       limit = 10,
     } = req.query;
 
+    // Validate and sanitize pagination parameters
+    const safePage = Math.max(1, parseInt(page) || 1);
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit) || 10));
+
     let query = `
       SELECT e.*, v.name as venue_name, v.address as venue_address
       FROM events e
@@ -54,10 +58,10 @@ router.get("/events", async (req, res) => {
     // Add pagination and ordering
     query += ` ORDER BY e.sort_order ASC, e.event_date ASC`;
 
-    const offset = (page - 1) * limit;
+    const offset = (safePage - 1) * safeLimit;
     paramCount++;
     query += ` LIMIT $${paramCount}`;
-    params.push(limit);
+    params.push(safeLimit);
 
     paramCount++;
     query += ` OFFSET $${paramCount}`;
@@ -69,10 +73,10 @@ router.get("/events", async (req, res) => {
       success: true,
       data: result.rows,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: safePage,
+        limit: safeLimit,
         total: totalCount,
-        pages: Math.ceil(totalCount / limit),
+        pages: Math.ceil(totalCount / safeLimit),
       },
     });
   } catch (error) {
@@ -587,5 +591,3 @@ router.delete("/blog/:id", async (req, res) => {
 });
 
 export default router;
-
-

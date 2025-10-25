@@ -90,7 +90,12 @@ router.put("/categories/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE categories 
-       SET name = $1, slug = $2, description = $3, sort_order = $4, is_published = $5, updated_at = NOW()
+       SET name = COALESCE($1, name), 
+           slug = COALESCE($2, slug), 
+           description = COALESCE($3, description), 
+           sort_order = COALESCE($4, sort_order), 
+           is_published = COALESCE($5, is_published), 
+           updated_at = NOW()
        WHERE id = $6
        RETURNING *`,
       [name, slug, description, sort_order, is_published, id]
@@ -167,6 +172,10 @@ router.get("/courses", async (req, res) => {
       limit = 9,
     } = req.query;
 
+    // Validate and sanitize pagination parameters
+    const safePage = Math.max(1, parseInt(page) || 1);
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit) || 9)); // Max 100 items per page
+
     let query = `
       SELECT c.*, i.name as instructor_name, i.title as instructor_title, cat.name as category_name, cat.slug as category_slug
       FROM courses c
@@ -206,12 +215,12 @@ router.get("/courses", async (req, res) => {
       paramCount += 2; // Update paramCount for the additional parameters
     }
 
-    // Get total count - build query dynamically to match main query parameters
+    // OPTIMIZED: Get total count - only join what's necessary for filtering
+    // Don't join categories table as it's not used in WHERE clause
     let countQuery = `
       SELECT COUNT(*) 
       FROM courses c
-      LEFT JOIN instructors i ON c.instructor_id = i.id
-      LEFT JOIN categories cat ON c.category_id = cat.id
+      ${search || instructor_id ? "LEFT JOIN instructors i ON c.instructor_id = i.id" : ""}
       WHERE 1=1
     `;
 
@@ -244,10 +253,10 @@ router.get("/courses", async (req, res) => {
     // Add pagination and ordering
     query += ` ORDER BY c.sort_order ASC, c.created_at DESC`;
 
-    const offset = (page - 1) * limit;
+    const offset = (safePage - 1) * safeLimit;
     paramCount++;
     query += ` LIMIT $${paramCount}`;
-    params.push(limit);
+    params.push(safeLimit);
 
     paramCount++;
     query += ` OFFSET $${paramCount}`;
@@ -259,10 +268,10 @@ router.get("/courses", async (req, res) => {
       success: true,
       data: result.rows,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: safePage,
+        limit: safeLimit,
         total: totalCount,
-        pages: Math.ceil(totalCount / limit),
+        pages: Math.ceil(totalCount / safeLimit),
       },
     });
   } catch (error) {
@@ -445,9 +454,24 @@ router.put("/courses/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE courses 
-       SET slug = $1, title = $2, description = $3, short_description = $4, price = $5, currency = $6,
-           level = $7, learning_mode = $8, instructor_id = $9, category_id = $10, thumbnail_url = $11, gallery_urls = $12,
-           is_published = $13, is_featured = $14, is_eligible_for_installments = $15, is_multi_module = $16, sort_order = $17, updated_at = NOW()
+       SET slug = COALESCE($1, slug), 
+           title = COALESCE($2, title), 
+           description = COALESCE($3, description), 
+           short_description = COALESCE($4, short_description), 
+           price = COALESCE($5, price), 
+           currency = COALESCE($6, currency),
+           level = COALESCE($7, level), 
+           learning_mode = COALESCE($8, learning_mode), 
+           instructor_id = COALESCE($9, instructor_id), 
+           category_id = COALESCE($10, category_id), 
+           thumbnail_url = COALESCE($11, thumbnail_url), 
+           gallery_urls = COALESCE($12, gallery_urls),
+           is_published = COALESCE($13, is_published), 
+           is_featured = COALESCE($14, is_featured), 
+           is_eligible_for_installments = COALESCE($15, is_eligible_for_installments), 
+           is_multi_module = COALESCE($16, is_multi_module), 
+           sort_order = COALESCE($17, sort_order), 
+           updated_at = NOW()
        WHERE id = $18
        RETURNING *`,
       [
@@ -935,7 +959,12 @@ router.put("/modules/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE course_modules 
-       SET title = $1, objectives = $2, outline = $3, sort_order = $4, is_published = $5, updated_at = NOW()
+       SET title = COALESCE($1, title), 
+           objectives = COALESCE($2, objectives), 
+           outline = COALESCE($3, outline), 
+           sort_order = COALESCE($4, sort_order), 
+           is_published = COALESCE($5, is_published), 
+           updated_at = NOW()
        WHERE id = $6
        RETURNING *`,
       [title, objectives, outline, sort_order, is_published, id]

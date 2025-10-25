@@ -80,8 +80,8 @@ const authLimiter = createRateLimit(
 );
 
 const publicApiLimiter = createRateLimit(
-  15 * 60 * 1000, // 15 minutes
-  5000, // limit each IP to 5000 requests per windowMs (very high for public APIs)
+  15 * 60 * 1000, // 15 minutes (industry standard)
+  2000, // limit each IP to 2000 requests per 15 minutes (~2 req/sec with bursting)
   "Too many requests from this IP, please try again later."
 );
 
