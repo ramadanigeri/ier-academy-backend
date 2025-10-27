@@ -1,6 +1,7 @@
 import express from "express";
 import pool from "../database/connection.js";
 import jwt from "jsonwebtoken";
+import { sendPaymentConfirmationEmail } from "../services/email.js";
 
 const router = express.Router();
 
@@ -526,6 +527,48 @@ router.get("/enrollment/:id/status", async (req, res) => {
         "UPDATE payments SET status = 'verified' WHERE enrollment_id = $1",
         [id]
       );
+
+      // Send payment confirmation email
+      try {
+        // Get enrollment details
+        const enrollmentResult = await pool.query(
+          `SELECT e.*, p.amount, p.currency 
+           FROM enrollments e 
+           LEFT JOIN payments p ON e.id = p.enrollment_id 
+           WHERE e.id = $1`,
+          [id]
+        );
+
+        if (enrollmentResult.rows.length > 0) {
+          const enrollment = enrollmentResult.rows[0];
+          
+          await sendPaymentConfirmationEmail({
+            enrollmentId: enrollment.id,
+            fullName: enrollment.full_name,
+            email: enrollment.email,
+            courseName: enrollment.course_slug,
+            sessionName: `Session ${enrollment.session_id}`,
+            amount: enrollment.amount || 0,
+            currency: enrollment.currency || 'EUR'
+          });
+
+          // Log email sent to database
+          await pool.query(
+            `INSERT INTO email_log (enrollment_id, email_type, recipient_email, subject, status)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+              enrollment.id,
+              'payment_confirmation',
+              enrollment.email,
+              `Payment Confirmed - ${enrollment.course_slug}`,
+              'sent'
+            ]
+          );
+        }
+      } catch (emailError) {
+        console.error("Failed to send payment confirmation email:", emailError);
+        // Don't fail the status update if email fails
+      }
 
       // Reduce available spots in course by 1 when student is registered
     }

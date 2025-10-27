@@ -2,8 +2,7 @@ import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import pool from "../database/connection.js";
 import { enrollmentSchema } from "../utils/validation.js";
-import { getCourseBySlug } from "../services/sanity.js";
-// import { sendEnrollmentConfirmationEmail } from '../services/email.js'; // Disabled for now
+import { sendEnrollmentConfirmationEmail } from '../services/email.js';
 
 const router = express.Router();
 
@@ -174,6 +173,48 @@ router.post("/", async (req, res) => {
       [enrollmentId, parseFloat(amount) || 0, currency || "EUR", "pending"]
     );
 
+    // Send confirmation email with data from frontend
+    try {
+      await sendEnrollmentConfirmationEmail({
+        enrollmentId: enrollment.id,
+        fullName: studentName,
+        email: studentEmail,
+        courseName: courseSlug, // Use courseSlug as course name
+        sessionName: `Session ${sessionId}`, // Use sessionId as session name
+        amount: parseFloat(amount) || 0,
+        currency: currency || "EUR",
+        courseDetails: {
+          description: "Course details will be provided upon payment confirmation",
+          duration: "As specified in course information",
+          instructor: "To be announced",
+          level: "All levels"
+        },
+        sessionDetails: {
+          startDate: null, // Will be provided by frontend if available
+          endDate: null,
+          time: "To be confirmed",
+          location: "To be confirmed",
+          capacity: null
+        }
+      });
+
+      // Log email sent to database
+      await pool.query(
+        `INSERT INTO email_log (enrollment_id, email_type, recipient_email, subject, status)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          enrollmentId,
+          'enrollment_confirmation',
+          studentEmail,
+          `Enrollment Pending Payment - ${courseSlug}`,
+          'sent'
+        ]
+      );
+    } catch (emailError) {
+      console.error("Failed to send enrollment confirmation email:", emailError);
+      // Don't fail the enrollment if email fails
+    }
+
     res.status(201).json({
       success: true,
       enrollmentId: enrollment.id,
@@ -196,33 +237,9 @@ router.post("/checkout", async (req, res) => {
     // Validate request data
     const validatedData = enrollmentSchema.parse(req.body);
 
-    // Get course data from Sanity
-    const course = await getCourseBySlug(validatedData.courseSlug);
-
-    if (!course) {
-      return res.status(404).json({ error: "Course not found" });
-    }
-
-    // Find the specific session
-    const session = course.sessions?.find(
-      (s) => s._id === validatedData.sessionId
-    );
-    if (!session) {
-      return res.status(404).json({ error: "Session not found" });
-    }
-
-    // Check if session is open for enrollment
-    if (session.status !== "open") {
-      return res
-        .status(400)
-        .json({ error: "Session is not open for enrollment" });
-    }
-
-    // Check available spots
-    const availableSpots = session.capacity - session.enrolledCount;
-    if (availableSpots <= 0) {
-      return res.status(400).json({ error: "Session is full" });
-    }
+    // Since we're not using Sanity, we'll work with the data provided by the frontend
+    // The frontend should provide all necessary course and session information
+    // Session validation should be handled by the frontend before submission
 
     // Create enrollment record
     const enrollmentId = uuidv4();
@@ -269,15 +286,47 @@ router.post("/checkout", async (req, res) => {
       ]
     );
 
-    // await sendEnrollmentConfirmationEmail({
-    //   enrollmentId: enrollment.id,
-    //   fullName: validatedData.fullName,
-    //   email: validatedData.email,
-    //   courseName: course.title,
-    //   sessionName: session.title,
-    //   amount: course.price,
-    //   currency: course.currency || 'EUR',
-    // });
+    // Send enrollment confirmation email
+    try {
+      await sendEnrollmentConfirmationEmail({
+        enrollmentId: enrollment.id,
+        fullName: validatedData.fullName,
+        email: validatedData.email,
+        courseName: course.title,
+        sessionName: session.title,
+        amount: course.price,
+        currency: course.currency || 'EUR',
+        courseDetails: {
+          description: course.description,
+          duration: course.duration,
+          instructor: course.instructor,
+          level: course.level
+        },
+        sessionDetails: {
+          startDate: session.startDate,
+          endDate: session.endDate,
+          time: session.time,
+          location: session.location,
+          capacity: session.capacity
+        }
+      });
+
+      // Log email sent to database
+      await pool.query(
+        `INSERT INTO email_log (enrollment_id, email_type, recipient_email, subject, status)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          enrollment.id,
+          'enrollment_confirmation',
+          validatedData.email,
+          `Enrollment Pending Payment - ${course.title}`,
+          'sent'
+        ]
+      );
+    } catch (emailError) {
+      console.error("Failed to send enrollment confirmation email:", emailError);
+      // Don't fail the enrollment if email fails
+    }
 
     res.json({
       success: true,
@@ -734,6 +783,54 @@ router.delete("/:id", async (req, res) => {
       success: false,
       error: "Failed to delete enrollment",
       message: error.message,
+    });
+  }
+});
+
+// Test email endpoint (for development only)
+router.post("/test-email", async (req, res) => {
+  try {
+    const { email, courseName = "Test Course", sessionName = "Test Session" } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: "Email is required for testing" });
+    }
+
+    const testEnrollmentId = uuidv4();
+    
+    await sendEnrollmentConfirmationEmail({
+      enrollmentId: testEnrollmentId,
+      fullName: "Test User",
+      email: email,
+      courseName: courseName,
+      sessionName: sessionName,
+      amount: 299,
+      currency: "EUR",
+      courseDetails: {
+        description: "This is a comprehensive course designed to teach you the fundamentals and advanced concepts. You'll learn through hands-on projects and real-world applications.",
+        duration: "6 weeks",
+        instructor: "Dr. John Smith",
+        level: "Intermediate"
+      },
+      sessionDetails: {
+        startDate: "2024-02-15T09:00:00Z",
+        endDate: "2024-03-28T17:00:00Z",
+        time: "9:00 AM - 5:00 PM",
+        location: "IER Academy Training Center, Tirana",
+        capacity: 25
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Test email sent successfully",
+      enrollmentId: testEnrollmentId
+    });
+  } catch (error) {
+    console.error("Test email error:", error);
+    res.status(500).json({
+      error: "Failed to send test email",
+      details: error.message
     });
   }
 });
