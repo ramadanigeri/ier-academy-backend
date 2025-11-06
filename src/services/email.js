@@ -1,6 +1,17 @@
-import { Resend } from "resend";
+import { sendMailViaGraph } from "./outlookOAuth.js";
+import { sendMail as sendMailViaSMTP } from "./smtpService.js";
 
-// const resend = new Resend(process.env.RESEND_API_KEY);
+// Choose which email service to use based on environment variable
+const USE_SMTP = process.env.USE_SMTP === 'true';
+
+// Unified send function that routes to the appropriate service
+async function sendEmail(message) {
+  if (USE_SMTP) {
+    return await sendMailViaSMTP(message);
+  } else {
+    return await sendMailViaGraph(message);
+  }
+}
 
 // Bank transfer details (centralized)
 const BANK_DETAILS = {
@@ -9,15 +20,15 @@ const BANK_DETAILS = {
     accountHolder: "IER ACADEMY SHPK L92217036A",
     accountNumber: "0011434704",
     swiftCode: "SGSBALTX",
-    iban: "AL54202111300000000011434704"
+    iban: "AL54202111300000000011434704",
   },
   eur: {
     bankName: "Banka Raiffeisen Sha, Tirana, Albania",
     accountHolder: "IER ACADEMY SHPK L92217036A",
     accountNumber: "0021434704",
     swiftCode: "SGSBALTX",
-    iban: "AL39202111300000000021434704"
-  }
+    iban: "AL39202111300000000021434704",
+  },
 };
 
 export async function sendEnrollmentConfirmationEmail({
@@ -32,11 +43,11 @@ export async function sendEnrollmentConfirmationEmail({
   sessionDetails = {},
 }) {
   try {
-    const { data, error } = await resend.emails.send({
-      from: "IER Academy <noreply@ieracademy.com>",
-      to: [email],
+    const message = {
       subject: `Enrollment Pending Payment - ${courseName}`,
-      html: `
+      body: {
+        contentType: "HTML",
+        content: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -266,56 +277,80 @@ export async function sendEnrollmentConfirmationEmail({
                         <p class="detail-value">${sessionName}</p>
                     </div>
                 </div>
-                ${sessionDetails.startDate ? `
+                ${
+                  sessionDetails.startDate
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Start Date</p>
-                        <p class="detail-value">${new Date(sessionDetails.startDate).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
+                        <p class="detail-value">${new Date(
+                          sessionDetails.startDate
+                        ).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
                         })}</p>
                     </div>
                 </div>
-                ` : ''}
-                ${sessionDetails.endDate ? `
+                `
+                    : ""
+                }
+                ${
+                  sessionDetails.endDate
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">End Date</p>
-                        <p class="detail-value">${new Date(sessionDetails.endDate).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
+                        <p class="detail-value">${new Date(
+                          sessionDetails.endDate
+                        ).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
                         })}</p>
                     </div>
                 </div>
-                ` : ''}
-                ${sessionDetails.time ? `
+                `
+                    : ""
+                }
+                ${
+                  sessionDetails.time
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Time</p>
                         <p class="detail-value">${sessionDetails.time}</p>
                     </div>
                 </div>
-                ` : ''}
-                ${sessionDetails.location ? `
+                `
+                    : ""
+                }
+                ${
+                  sessionDetails.location
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Location</p>
                         <p class="detail-value">${sessionDetails.location}</p>
                     </div>
                 </div>
-                ` : ''}
-                ${courseDetails.duration ? `
+                `
+                    : ""
+                }
+                ${
+                  courseDetails.duration
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Duration</p>
                         <p class="detail-value">${courseDetails.duration}</p>
                     </div>
                 </div>
-                ` : ''}
+                `
+                    : ""
+                }
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Enrollment ID</p>
@@ -405,7 +440,9 @@ export async function sendEnrollmentConfirmationEmail({
         </div>
 
         <!-- Payment Amount -->
-        ${amount ? `
+        ${
+          amount
+            ? `
         <div class="soft-card">
             <h2 class="section-title">Payment Amount</h2>
             <div class="payment-amount">
@@ -413,7 +450,9 @@ export async function sendEnrollmentConfirmationEmail({
                 <p class="amount-value">${amount} ${currency}</p>
             </div>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
 
         <!-- Important Information -->
         <div class="soft-card">
@@ -441,14 +480,25 @@ export async function sendEnrollmentConfirmationEmail({
     </div>
 </body>
 </html>`,
-    });
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: email,
+          },
+        },
+      ],
+      replyTo: [
+        {
+          emailAddress: {
+            address: "noreply@ieracademy.com",
+          },
+        },
+      ],
+    };
 
-    if (error) {
-      throw error;
-    }
-
-    // Log email sent
-    return data;
+    const result = await sendEmail(message);
+    return result;
   } catch (error) {
     console.error("Failed to send enrollment confirmation email:", error);
     throw error;
@@ -467,11 +517,11 @@ export async function sendPaymentConfirmationEmail({
   sessionDetails = {},
 }) {
   try {
-    const { data, error } = await resend.emails.send({
-      from: "IER Academy <noreply@ieracademy.com>",
-      to: [email],
+    const message = {
       subject: `Payment Confirmed - ${courseName}`,
-      html: `
+      body: {
+        contentType: "HTML",
+        content: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -683,48 +733,68 @@ export async function sendPaymentConfirmationEmail({
                         <p class="detail-value">${sessionName}</p>
                     </div>
                 </div>
-                ${sessionDetails.startDate ? `
+                ${
+                  sessionDetails.startDate
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Start Date</p>
-                        <p class="detail-value">${new Date(sessionDetails.startDate).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
+                        <p class="detail-value">${new Date(
+                          sessionDetails.startDate
+                        ).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
                         })}</p>
                     </div>
                 </div>
-                ` : ''}
-                ${sessionDetails.endDate ? `
+                `
+                    : ""
+                }
+                ${
+                  sessionDetails.endDate
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">End Date</p>
-                        <p class="detail-value">${new Date(sessionDetails.endDate).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
+                        <p class="detail-value">${new Date(
+                          sessionDetails.endDate
+                        ).toLocaleDateString("en-US", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
                         })}</p>
                     </div>
                 </div>
-                ` : ''}
-                ${sessionDetails.time ? `
+                `
+                    : ""
+                }
+                ${
+                  sessionDetails.time
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Time</p>
                         <p class="detail-value">${sessionDetails.time}</p>
                     </div>
                 </div>
-                ` : ''}
-                ${sessionDetails.location ? `
+                `
+                    : ""
+                }
+                ${
+                  sessionDetails.location
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Location</p>
                         <p class="detail-value">${sessionDetails.location}</p>
                     </div>
                 </div>
-                ` : ''}
+                `
+                    : ""
+                }
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Enrollment ID</p>
@@ -773,13 +843,25 @@ export async function sendPaymentConfirmationEmail({
     </div>
 </body>
 </html>`,
-    });
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: email,
+          },
+        },
+      ],
+      replyTo: [
+        {
+          emailAddress: {
+            address: "noreply@ieracademy.com",
+          },
+        },
+      ],
+    };
 
-    if (error) {
-      throw error;
-    }
-
-    return data;
+    const result = await sendEmail(message);
+    return result;
   } catch (error) {
     console.error("Failed to send payment confirmation email:", error);
     throw error;
@@ -794,11 +876,11 @@ export async function sendContactFormNotification({
   message,
 }) {
   try {
-    const { data, error } = await resend.emails.send({
-      from: "IER Academy <noreply@ieracademy.com>",
-      to: ["info@ieracademy.com"], // Replace with your admin email
+    const message = {
       subject: `New Contact Form Submission: ${subject || "No Subject"}`,
-      html: `
+      body: {
+        contentType: "HTML",
+        content: `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1012,22 +1094,30 @@ export async function sendContactFormNotification({
                         <p class="detail-value">${email}</p>
                     </div>
                 </div>
-                ${phone ? `
+                ${
+                  phone
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Phone</p>
                         <p class="detail-value">${phone}</p>
                     </div>
                 </div>
-                ` : ''}
-                ${subject ? `
+                `
+                    : ""
+                }
+                ${
+                  subject
+                    ? `
                 <div class="detail-item">
                     <div style="flex: 1;">
                         <p class="detail-label">Subject</p>
-                        <div class="subject-badge ${subject.toLowerCase().replace(/\s+/g, '-')}">${subject}</div>
+                        <div class="subject-badge ${subject.toLowerCase().replace(/\s+/g, "-")}">${subject}</div>
                     </div>
                 </div>
-                ` : ''}
+                `
+                    : ""
+                }
             </div>
         </div>
 
@@ -1043,7 +1133,7 @@ export async function sendContactFormNotification({
         <div class="soft-card">
             <h3 class="section-title">Quick Actions</h3>
             <div class="action-buttons">
-                <a href="mailto:${email}?subject=Re: ${subject || 'Your inquiry'}" class="action-button primary">Reply to ${name}</a>
+                <a href="mailto:${email}?subject=Re: ${subject || "Your inquiry"}" class="action-button primary">Reply to ${name}</a>
                 <a href="mailto:${email}" class="action-button secondary">View Email</a>
             </div>
         </div>
@@ -1055,13 +1145,25 @@ export async function sendContactFormNotification({
     </div>
 </body>
 </html>`,
-    });
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: "info@ieracademy.com",
+          },
+        },
+      ],
+      replyTo: [
+        {
+          emailAddress: {
+            address: email,
+          },
+        },
+      ],
+    };
 
-    if (error) {
-      throw error;
-    }
-
-    return data;
+    const result = await sendEmail(message);
+    return result;
   } catch (error) {
     console.error("Failed to send contact form notification:", error);
     throw error;
@@ -1074,11 +1176,11 @@ export async function sendEventRegistrationConfirmation({
   participant,
 }) {
   try {
-    const { data, error } = await resend.emails.send({
-      from: "IER Academy <noreply@ieracademy.com>",
-      to: [participant.email],
+    const message = {
       subject: `Event Registration Confirmed - ${event.title}`,
-      html: `
+      body: {
+        contentType: "HTML",
+        content: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="text-align: center; margin-bottom: 30px;">
             <div style="display: inline-block; background: #22c55e; color: white; padding: 15px 30px; border-radius: 50px; margin-bottom: 20px;">
@@ -1208,13 +1310,25 @@ export async function sendEventRegistrationConfirmation({
           </div>
         </div>
       `,
-    });
+      },
+      toRecipients: [
+        {
+          emailAddress: {
+            address: participant.email,
+          },
+        },
+      ],
+      replyTo: [
+        {
+          emailAddress: {
+            address: "noreply@ieracademy.com",
+          },
+        },
+      ],
+    };
 
-    if (error) {
-      throw error;
-    }
-
-    return data;
+    const result = await sendEmail(message);
+    return result;
   } catch (error) {
     console.error(
       "Failed to send event registration confirmation email:",
