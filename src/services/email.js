@@ -1,6 +1,7 @@
-import { Resend } from "resend";
+// Email service disabled - will be implemented in the future
+// import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Bank transfer details (centralized)
 const BANK_DETAILS = {
@@ -68,23 +69,33 @@ export async function sendEnrollmentConfirmationEmail({
               <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td style="padding: 6px 0; color: #6b7280;"><strong>Bank Name:</strong></td>
-                  <td style="padding: 6px 0; text-align: right;">${BANK_DETAILS.bankName}</td>
+                  <td style="padding: 6px 0; text-align: right;">${
+                    BANK_DETAILS.bankName
+                  }</td>
                 </tr>
                 <tr>
                   <td style="padding: 6px 0; color: #6b7280;"><strong>Account Name:</strong></td>
-                  <td style="padding: 6px 0; text-align: right;">${BANK_DETAILS.accountName}</td>
+                  <td style="padding: 6px 0; text-align: right;">${
+                    BANK_DETAILS.accountName
+                  }</td>
                 </tr>
                 <tr>
                   <td style="padding: 6px 0; color: #6b7280;"><strong>Account Number:</strong></td>
-                  <td style="padding: 6px 0; text-align: right; font-family: monospace;">${BANK_DETAILS.accountNumber}</td>
+                  <td style="padding: 6px 0; text-align: right; font-family: monospace;">${
+                    BANK_DETAILS.accountNumber
+                  }</td>
                 </tr>
                 <tr>
                   <td style="padding: 6px 0; color: #6b7280;"><strong>IBAN:</strong></td>
-                  <td style="padding: 6px 0; text-align: right; font-family: monospace;">${BANK_DETAILS.iban}</td>
+                  <td style="padding: 6px 0; text-align: right; font-family: monospace;">${
+                    BANK_DETAILS.iban
+                  }</td>
                 </tr>
                 <tr>
                   <td style="padding: 6px 0; color: #6b7280;"><strong>SWIFT/BIC:</strong></td>
-                  <td style="padding: 6px 0; text-align: right; font-family: monospace;">${BANK_DETAILS.swift}</td>
+                  <td style="padding: 6px 0; text-align: right; font-family: monospace;">${
+                    BANK_DETAILS.swift
+                  }</td>
                 </tr>
               </table>
             </div>
@@ -310,7 +321,9 @@ export async function sendEventRegistrationConfirmation({
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
                 <td style="padding: 8px 0;"><strong>Event:</strong></td>
-                <td style="padding: 8px 0; text-align: right;">${event.title}</td>
+                <td style="padding: 8px 0; text-align: right;">${
+                  event.title
+                }</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0;"><strong>Date:</strong></td>
@@ -327,11 +340,17 @@ export async function sendEventRegistrationConfirmation({
               </tr>
               <tr>
                 <td style="padding: 8px 0;"><strong>Location:</strong></td>
-                <td style="padding: 8px 0; text-align: right;">${event.location}</td>
+                <td style="padding: 8px 0; text-align: right;">${
+                  event.location
+                }</td>
               </tr>
               <tr>
                 <td style="padding: 8px 0;"><strong>Price:</strong></td>
-                <td style="padding: 8px 0; text-align: right; color: #2563eb; font-size: 18px;"><strong>${event.price === 0 ? "Free" : `${event.price} ${event.currency}`}</strong></td>
+                <td style="padding: 8px 0; text-align: right; color: #2563eb; font-size: 18px;"><strong>${
+                  event.price === 0
+                    ? "Free"
+                    : `${event.price} ${event.currency}`
+                }</strong></td>
               </tr>
               <tr>
                 <td style="padding: 8px 0;"><strong>Registration ID:</strong></td>

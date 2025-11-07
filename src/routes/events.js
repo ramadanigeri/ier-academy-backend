@@ -1,6 +1,6 @@
 import express from "express";
 import pool from "../database/connection.js";
-import { sendEventRegistrationConfirmation } from "../services/email.js";
+// import { sendEventRegistrationConfirmation } from "../services/email.js"; // Disabled - email service not implemented yet
 import {
   eventRegistrationSchema,
   eventRegistrationByTitleSchema,
@@ -353,12 +353,20 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Event not found" });
     }
 
+    // Add cache headers for single event
+    res.set({
+      'Cache-Control': 'public, max-age=60, s-maxage=300', // 1 min client, 5 min CDN
+      'Vary': 'Accept-Encoding',
+    });
+
     res.json({
+      success: true,
       data: result.rows[0],
     });
   } catch (error) {
     console.error("Get event error:", error);
     res.status(500).json({
+      success: false,
       error: "Failed to fetch event",
     });
   }
@@ -401,13 +409,24 @@ router.get("/", async (req, res) => {
 
     const result = await pool.query(query, params);
 
+    // Add cache headers based on data freshness needs
+    // Events list can be cached longer since it's read-heavy
+    const cacheMaxAge = status === "all" ? 300 : 60; // 5 min for all, 1 min for filtered
+
+    res.set({
+      "Cache-Control": `public, max-age=${cacheMaxAge}, s-maxage=${cacheMaxAge * 2}`, // CDN cache longer
+      Vary: "Accept-Encoding", // Cache different versions for different encodings
+    });
+
     res.json({
+      success: true,
       data: result.rows,
       count: result.rows.length,
     });
   } catch (error) {
     console.error("Get public events error:", error);
     res.status(500).json({
+      success: false,
       error: "Failed to fetch events",
       message:
         process.env.NODE_ENV === "development"
@@ -505,27 +524,27 @@ router.post("/:eventId/register", async (req, res) => {
       // Commit transaction
       await pool.query("COMMIT");
 
-      // Send confirmation email
-      try {
-        await sendEventRegistrationConfirmation({
-          registrationId,
-          event: {
-            title: event.title,
-            eventDate: event.event_date,
-            location: event.location,
-            price: event.price,
-            currency: event.currency,
-          },
-          participant: {
-            firstName: registrationData.firstName,
-            lastName: registrationData.lastName,
-            email: registrationData.email,
-          },
-        });
-      } catch (emailError) {
-        console.error("Failed to send confirmation email:", emailError);
-        // Don't fail the registration if email fails
-      }
+      // Send confirmation email (disabled - email service not implemented yet)
+      // try {
+      //   await sendEventRegistrationConfirmation({
+      //     registrationId,
+      //     event: {
+      //       title: event.title,
+      //       eventDate: event.event_date,
+      //       location: event.location,
+      //       price: event.price,
+      //       currency: event.currency,
+      //     },
+      //     participant: {
+      //       firstName: registrationData.firstName,
+      //       lastName: registrationData.lastName,
+      //       email: registrationData.email,
+      //     },
+      //   });
+      // } catch (emailError) {
+      //   console.error("Failed to send confirmation email:", emailError);
+      //   // Don't fail the registration if email fails
+      // }
 
       res.status(201).json({
         message: "Registration successful",
@@ -668,27 +687,27 @@ router.post("/register", async (req, res) => {
       // Commit transaction
       await pool.query("COMMIT");
 
-      // Send confirmation email
-      try {
-        await sendEventRegistrationConfirmation({
-          registrationId,
-          event: {
-            title: event.title,
-            eventDate: event.event_date,
-            location: event.location,
-            price: event.price,
-            currency: event.currency,
-          },
-          participant: {
-            firstName: registrationData.firstName,
-            lastName: registrationData.lastName,
-            email: registrationData.email,
-          },
-        });
-      } catch (emailError) {
-        console.error("Failed to send confirmation email:", emailError);
-        // Don't fail the registration if email fails
-      }
+      // Send confirmation email (disabled - email service not implemented yet)
+      // try {
+      //   await sendEventRegistrationConfirmation({
+      //     registrationId,
+      //     event: {
+      //       title: event.title,
+      //       eventDate: event.event_date,
+      //       location: event.location,
+      //       price: event.price,
+      //       currency: event.currency,
+      //     },
+      //     participant: {
+      //       firstName: registrationData.firstName,
+      //       lastName: registrationData.lastName,
+      //       email: registrationData.email,
+      //     },
+      //   });
+      // } catch (emailError) {
+      //   console.error("Failed to send confirmation email:", emailError);
+      //   // Don't fail the registration if email fails
+      // }
 
       res.status(201).json({
         success: true,

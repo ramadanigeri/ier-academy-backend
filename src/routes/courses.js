@@ -22,6 +22,12 @@ router.get("/categories", async (req, res) => {
 
     const result = await pool.query(query);
 
+    // Add cache headers - categories change infrequently
+    res.set({
+      "Cache-Control": "public, max-age=300, s-maxage=600", // 5 min client, 10 min CDN
+      Vary: "Accept-Encoding",
+    });
+
     res.json({
       success: true,
       data: result.rows,
@@ -208,7 +214,9 @@ router.get("/courses", async (req, res) => {
 
     if (search) {
       paramCount++;
-      query += ` AND (c.title ILIKE $${paramCount} OR c.description ILIKE $${paramCount + 1} OR i.name ILIKE $${paramCount + 2})`;
+      query += ` AND (c.title ILIKE $${paramCount} OR c.description ILIKE $${
+        paramCount + 1
+      } OR i.name ILIKE $${paramCount + 2})`;
       params.push(`%${search}%`);
       params.push(`%${search}%`);
       params.push(`%${search}%`);
@@ -220,7 +228,11 @@ router.get("/courses", async (req, res) => {
     let countQuery = `
       SELECT COUNT(*) 
       FROM courses c
-      ${search || instructor_id ? "LEFT JOIN instructors i ON c.instructor_id = i.id" : ""}
+      ${
+        search || instructor_id
+          ? "LEFT JOIN instructors i ON c.instructor_id = i.id"
+          : ""
+      }
       WHERE 1=1
     `;
 
@@ -244,7 +256,9 @@ router.get("/courses", async (req, res) => {
     }
 
     if (search) {
-      countQuery += ` AND (c.title ILIKE $${countParamIndex} OR c.description ILIKE $${countParamIndex + 1} OR i.name ILIKE $${countParamIndex + 2})`;
+      countQuery += ` AND (c.title ILIKE $${countParamIndex} OR c.description ILIKE $${
+        countParamIndex + 1
+      } OR i.name ILIKE $${countParamIndex + 2})`;
     }
 
     const countResult = await pool.query(countQuery, params);
@@ -263,6 +277,17 @@ router.get("/courses", async (req, res) => {
     params.push(offset);
 
     const result = await pool.query(query, params);
+
+    // Add cache headers - courses list with pagination
+    // Cache duration depends on whether it's filtered/search results
+    const cacheMaxAge = search || category_id ? 60 : 300; // 1 min for filtered, 5 min for all
+
+    res.set({
+      "Cache-Control": `public, max-age=${cacheMaxAge}, s-maxage=${
+        cacheMaxAge * 2
+      }`,
+      Vary: "Accept-Encoding",
+    });
 
     res.json({
       success: true,
@@ -335,6 +360,12 @@ router.get("/courses/:slug", async (req, res) => {
         error: "Course not found",
       });
     }
+
+    // Add cache headers for single course
+    res.set({
+      "Cache-Control": "public, max-age=300, s-maxage=600", // 5 min client, 10 min CDN
+      Vary: "Accept-Encoding",
+    });
 
     res.json({
       success: true,
@@ -559,6 +590,89 @@ router.delete("/courses/:id", async (req, res) => {
 // SESSIONS API ROUTES
 // =============================================
 
+// OPTIMIZATION: Batch endpoint to fetch sessions for multiple courses in one request
+// This reduces N requests to 1 request when loading courses list
+router.get("/sessions/batch", async (req, res) => {
+  try {
+    const { courseIds, published_only = false } = req.query;
+
+    if (!courseIds) {
+      return res.status(400).json({
+        success: false,
+        error: "courseIds parameter required (comma-separated course IDs)",
+      });
+    }
+
+    // Parse comma-separated course IDs
+    const ids = courseIds
+      .split(",")
+      .map((id) => parseInt(id.trim()))
+      .filter((id) => !isNaN(id));
+
+    if (ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid courseIds format",
+      });
+    }
+
+    // Build query to fetch all sessions for these courses
+    let query = `
+      SELECT s.*, s.course_id, c.title as course_title, v.name as venue_name, v.address as venue_address,
+             COALESCE(registered_count.registered_count, 0) as registered_count,
+             (s.capacity - COALESCE(registered_count.registered_count, 0)) as available_spots
+      FROM sessions s
+      JOIN courses c ON s.course_id = c.id
+      LEFT JOIN venues v ON s.venue_id = v.id
+      LEFT JOIN (
+        SELECT session_id, COUNT(*) as registered_count
+        FROM enrollments 
+        WHERE status IN ('registered', 'payment_confirmed')
+        GROUP BY session_id
+      ) registered_count ON s.id::text = registered_count.session_id
+      WHERE s.course_id = ANY($1::int[])
+    `;
+
+    if (published_only === "true") {
+      query += " AND s.is_published = true";
+    }
+
+    query += " ORDER BY s.course_id, s.start_date ASC, s.created_at ASC";
+
+    const result = await pool.query(query, [ids]);
+
+    // Group sessions by course_id
+    const sessionsByCourse = {};
+    result.rows.forEach((session) => {
+      const courseId = session.course_id;
+      if (!sessionsByCourse[courseId]) {
+        sessionsByCourse[courseId] = [];
+      }
+      // Remove course_id from session object (it's just for grouping)
+      const { course_id, ...sessionData } = session;
+      sessionsByCourse[courseId].push(sessionData);
+    });
+
+    // Add cache headers - batch endpoint benefits greatly from caching
+    res.set({
+      "Cache-Control": "public, max-age=300, s-maxage=600", // 5 min client, 10 min CDN
+      Vary: "Accept-Encoding",
+    });
+
+    res.json({
+      success: true,
+      data: sessionsByCourse, // Returns object: { courseId1: [sessions], courseId2: [sessions], ... }
+      count: result.rows.length,
+    });
+  } catch (error) {
+    console.error("[ERROR] Batch sessions endpoint failed:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch sessions",
+    });
+  }
+});
+
 // Get sessions for a course
 router.get("/:courseId/sessions", async (req, res) => {
   try {
@@ -589,6 +703,13 @@ router.get("/:courseId/sessions", async (req, res) => {
     query += " ORDER BY s.start_date ASC, s.created_at ASC";
 
     const result = await pool.query(query, params);
+
+    // Add cache headers - sessions are frequently accessed but don't change often
+    // This endpoint is called multiple times per page load, so caching is critical
+    res.set({
+      "Cache-Control": "public, max-age=300, s-maxage=600", // 5 min client, 10 min CDN
+      Vary: "Accept-Encoding",
+    });
 
     res.json({
       success: true,
