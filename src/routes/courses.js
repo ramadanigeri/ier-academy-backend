@@ -674,7 +674,7 @@ router.get("/sessions/batch", async (req, res) => {
 });
 
 // Get sessions for a course
-router.get("/:courseId/sessions", async (req, res) => {
+router.get("/:courseId(\\d+)/sessions", async (req, res) => {
   try {
     const { courseId } = req.params;
     const { published_only = false } = req.query;
